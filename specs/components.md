@@ -54,9 +54,85 @@ Three estimation methods:
 - **ByteRatio**: `text.len() / 4`
 - **CharRatio**: `text.chars().count() / 4`
 
+## Agent Trait (`agent.rs`)
+
+Abstraction over the Claude subprocess to enable dependency injection and testing:
+
+```rust
+/// Result of a single agent invocation
+pub struct AgentResult {
+    pub output: String,
+    pub promise_found: Option<String>,
+    pub token_count: usize,
+    pub exit_reason: ExitReason,
+}
+
+pub enum ExitReason {
+    Natural,           // Process exited normally
+    ContextLimit,      // Killed due to context limit
+    Shutdown,          // Killed due to shutdown signal
+}
+
+impl AgentResult {
+    pub fn with_promise(promise: &str) -> Self { /* ... */ }
+    pub fn without_promise() -> Self { /* ... */ }
+
+    pub fn is_fulfilled(&self) -> bool {
+        self.promise_found.is_some()
+    }
+}
+
+/// Trait for agent implementations (real Claude or mock)
+#[async_trait]
+pub trait Agent: Send + Sync {
+    async fn run(&self, prompt: &str) -> Result<AgentResult, RalphError>;
+}
+```
+
+### Implementations
+
+- **ClaudeAgent**: Production implementation that spawns Claude subprocess
+- **MockAgent**: Test implementation with configurable behavior
+
 ## Loop Controller (`loop_controller.rs`)
 
 Main orchestration logic that coordinates all components and manages the iteration loop.
+
+Accepts any `Agent` implementation via dependency injection:
+
+```rust
+pub struct LoopController<A: Agent> {
+    config: Config,
+    agent: A,
+    state: SharedState,
+}
+
+impl<A: Agent> LoopController<A> {
+    pub fn new(config: Config, agent: A) -> Self { /* ... */ }
+
+    pub async fn run(&mut self) -> Result<LoopResult, RalphError> {
+        for iteration in 1.. {
+            if let Some(max) = self.config.max_iterations {
+                if iteration > max {
+                    return Err(RalphError::MaxIterationsExceeded);
+                }
+            }
+
+            let result = self.agent.run(&self.config.prompt).await?;
+
+            if result.is_fulfilled() {
+                return Ok(LoopResult::PromiseFulfilled {
+                    iterations: iteration,
+                    promise: result.promise_found.unwrap(),
+                });
+            }
+
+            // Continue to next iteration
+        }
+        unreachable!()
+    }
+}
+```
 
 ## Dependencies
 
@@ -78,4 +154,5 @@ thiserror = "1.0"
 anyhow = "1.0"
 regex = "1.10"
 colored = "2.1"
+async-trait = "0.1"
 ```
