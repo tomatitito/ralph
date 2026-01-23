@@ -212,6 +212,11 @@ HandleShutdown ==
 (* Next State Relation                                                     *)
 (***************************************************************************)
 
+(* Termination: Allow stuttering in terminal states (for deadlock checking) *)
+Done ==
+    /\ loopState \in {"success", "failed", "shutdown"}
+    /\ UNCHANGED vars
+
 Next ==
     \/ StartIteration
     \/ MonitorOutput
@@ -220,6 +225,7 @@ Next ==
     \/ HandleIterationEnd
     \/ ShutdownRequested
     \/ HandleShutdown
+    \/ Done
 
 -----------------------------------------------------------------------------
 (***************************************************************************)

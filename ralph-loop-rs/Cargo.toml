@@ -1,0 +1,27 @@
+[package]
+name = "ralph-loop"
+version = "0.1.0"
+edition = "2021"
+description = "A concurrent Rust application that runs Claude Code in a loop with real-time context monitoring"
+license = "MIT"
+
+[[bin]]
+name = "ralph-loop"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full", "process", "sync", "signal"] }
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tiktoken-rs = "0.5"
+thiserror = "1.0"
+anyhow = "1.0"
+regex = "1.10"
+colored = "2.1"
+async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = "3.10"
