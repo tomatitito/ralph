@@ -15,7 +15,6 @@
   "hooks": {
     "Stop": [
       {
-        "matcher": {},
         "hooks": [
           {
             "type": "command",
@@ -26,7 +25,7 @@
     ],
     "PreCompact": [
       {
-        "matcher": {},
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
