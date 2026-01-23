@@ -1,238 +1,165 @@
 # Implementation Plan
 
-## Project Structure
+This document describes the phased approach to implementing ralph-loop. Each phase builds on the previous one and has clear acceptance criteria.
 
-```
-ralph-loop/
-├── .github/
-│   └── workflows/
-│       └── ci.yml           # CI workflow (build, test, clippy, fmt)
-├── Cargo.toml
-└── src/
-    ├── main.rs              # CLI entry point, signal handling
-    ├── lib.rs               # Library exports
-    ├── config.rs            # Configuration structures
-    ├── agent.rs             # Agent trait + ClaudeAgent implementation
-    ├── loop_controller.rs   # Main orchestration (generic over Agent)
-    ├── process.rs           # Claude subprocess management
-    ├── monitor.rs           # Output monitoring (tokens + promises)
-    ├── token_counter.rs     # Token estimation
-    ├── state.rs             # Shared state and events
-    └── error.rs             # Error types
-```
+## Phase 1: Foundation
 
-## Files to Create
+**Goal**: Establish project structure with minimal compiling code.
 
-| File | Purpose |
-|------|---------|
-| `ralph-loop/.github/workflows/ci.yml` | GitHub Actions CI workflow |
-| `ralph-loop/Cargo.toml` | Project manifest with dependencies |
-| `ralph-loop/src/main.rs` | CLI parsing, signal handling, entry point |
-| `ralph-loop/src/lib.rs` | Module exports |
-| `ralph-loop/src/config.rs` | Config structs and loading |
-| `ralph-loop/src/error.rs` | RalphError enum |
-| `ralph-loop/src/state.rs` | SharedState and events |
-| `ralph-loop/src/token_counter.rs` | Token estimation |
-| `ralph-loop/src/agent.rs` | Agent trait, AgentResult, ClaudeAgent impl |
-| `ralph-loop/src/process.rs` | ClaudeProcess wrapper |
-| `ralph-loop/src/monitor.rs` | OutputMonitor with concurrent readers |
-| `ralph-loop/src/loop_controller.rs` | Main orchestration logic (generic over Agent) |
+### Files
+- `Cargo.toml` - dependencies
+- `src/lib.rs` - module declarations
+- `src/main.rs` - minimal CLI skeleton
+- `src/error.rs` - `RalphError` enum
+- `src/config.rs` - `Config` struct with defaults
 
-## GitHub Actions CI Workflow
+### Acceptance Criteria
+- [ ] `cargo build` succeeds
+- [ ] `cargo test` runs (no tests yet)
+- [ ] `cargo clippy` passes
+- [ ] `cargo fmt --check` passes
 
-`.github/workflows/ci.yml`:
+---
 
-```yaml
-name: CI
+## Phase 2: Agent Abstraction
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+**Goal**: Define the `Agent` trait and `AgentResult` types to enable testing.
 
-env:
-  CARGO_TERM_COLOR: always
-  RUSTFLAGS: -Dwarnings
+### Files
+- `src/agent.rs` - `Agent` trait, `AgentResult`, `ExitReason`
 
-jobs:
-  check:
-    name: Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo check --all-targets
+### Dependencies
+- Phase 1 (error types)
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-targets
+### Acceptance Criteria
+- [ ] `Agent` trait compiles with async support
+- [ ] `AgentResult::with_promise()` and `without_promise()` constructors work
+- [ ] Unit tests for `AgentResult::is_fulfilled()` pass
 
-  fmt:
-    name: Format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - run: cargo fmt --all --check
+---
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all-targets
-```
+## Phase 3: Loop Controller with Mock
 
-## Verification
+**Goal**: Implement core loop logic using a mock agent.
 
-### 1. Build
+### Files
+- `src/loop_controller.rs` - `LoopController<A: Agent>`
+- `src/state.rs` - `SharedState` (simplified, no RwLock yet)
 
-```bash
-cargo build --release
-```
+### Dependencies
+- Phase 2 (Agent trait)
 
-### 2. Unit Tests
+### Acceptance Criteria
+- [ ] Loop continues until promise fulfilled (mock test)
+- [ ] Loop stops on first iteration if promise found immediately
+- [ ] Loop respects `max_iterations` limit
+- [ ] Returns `MaxIterationsExceeded` error when limit hit without promise
 
-```bash
-cargo test
-```
+---
 
-#### Loop Control Logic Test
+## Phase 4: Token Counting
 
-A unit test with a mocked agent to verify the loop continuation mechanism:
+**Goal**: Implement token estimation for context tracking.
 
-```rust
-// In src/loop_controller.rs or tests/loop_control_test.rs
+### Files
+- `src/token_counter.rs` - `TokenCounter` with multiple estimation methods
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+### Dependencies
+- None (standalone utility)
 
-    /// Mock agent that returns unfulfilled promise N times, then fulfilled
-    struct MockAgent {
-        calls_until_fulfilled: usize,
-        call_count: std::cell::RefCell<usize>,
-    }
+### Acceptance Criteria
+- [ ] Tiktoken estimation works with `cl100k_base`
+- [ ] ByteRatio fallback: `len / 4`
+- [ ] CharRatio fallback: `chars().count() / 4`
+- [ ] Unit tests verify estimates are within expected range
 
-    impl MockAgent {
-        fn new(calls_until_fulfilled: usize) -> Self {
-            Self {
-                calls_until_fulfilled,
-                call_count: std::cell::RefCell::new(0),
-            }
-        }
+---
 
-        fn call_count(&self) -> usize {
-            *self.call_count.borrow()
-        }
-    }
+## Phase 5: Process Management
 
-    impl Agent for MockAgent {
-        fn run(&self, _prompt: &str) -> AgentResult {
-            let mut count = self.call_count.borrow_mut();
-            *count += 1;
-            if *count >= self.calls_until_fulfilled {
-                AgentResult::with_promise("DONE")
-            } else {
-                AgentResult::without_promise()
-            }
-        }
-    }
+**Goal**: Spawn and manage Claude subprocess.
 
-    #[test]
-    fn loop_continues_until_promise_fulfilled() {
-        let mock = MockAgent::new(3);
-        let controller = LoopController::new(Config {
-            promise_condition: "DONE".to_string(),
-            max_iterations: None,
-            ..Default::default()
-        });
+### Files
+- `src/process.rs` - `ClaudeProcess` wrapper
 
-        let result = controller.run_with_agent(&mock);
+### Dependencies
+- Phase 1 (config for claude_path)
 
-        assert!(result.is_ok());
-        assert_eq!(mock.call_count(), 3); // Called exactly 3 times
-    }
+### Acceptance Criteria
+- [ ] Can spawn subprocess with piped stdin/stdout/stderr
+- [ ] Can write prompt to stdin
+- [ ] Can read output streams
+- [ ] `kill()` terminates process
 
-    #[test]
-    fn loop_stops_immediately_when_promise_fulfilled_first_try() {
-        let mock = MockAgent::new(1);
-        let controller = LoopController::new(Config {
-            promise_condition: "DONE".to_string(),
-            max_iterations: None,
-            ..Default::default()
-        });
+---
 
-        let result = controller.run_with_agent(&mock);
+## Phase 6: Output Monitoring
 
-        assert!(result.is_ok());
-        assert_eq!(mock.call_count(), 1); // Stopped after first call
-    }
+**Goal**: Concurrent monitoring of stdout/stderr for tokens and promises.
 
-    #[test]
-    fn loop_respects_max_iterations_when_promise_never_fulfilled() {
-        let mock = MockAgent::new(100); // Would need 100 calls
-        let controller = LoopController::new(Config {
-            promise_condition: "DONE".to_string(),
-            max_iterations: Some(5),
-            ..Default::default()
-        });
+### Files
+- `src/monitor.rs` - `OutputMonitor` with async line reading
+- `src/state.rs` - Add `RwLock` wrappers for concurrent access
 
-        let result = controller.run_with_agent(&mock);
+### Dependencies
+- Phase 4 (token counter)
+- Phase 5 (process streams)
 
-        assert!(result.is_err()); // Should error: max iterations exceeded
-        assert_eq!(mock.call_count(), 5); // Stopped at limit
-    }
-}
-```
+### Acceptance Criteria
+- [ ] Reads stdout/stderr concurrently
+- [ ] Detects `<promise>TEXT</promise>` pattern
+- [ ] Updates shared token count
+- [ ] Sends kill command when context limit reached
 
-This test requires an `Agent` trait abstraction that `LoopController` can accept, enabling dependency injection for testing.
+---
 
-### 3. Integration Test with Mock
+## Phase 7: ClaudeAgent Implementation
 
-```bash
-# Create test script that outputs promise
-echo '#!/bin/bash
-echo "Working..."
-sleep 1
-echo "<promise>DONE</promise>"' > /tmp/mock-claude.sh
-chmod +x /tmp/mock-claude.sh
+**Goal**: Production agent that wires process + monitor together.
 
-# Run ralph-loop with mock
-./target/release/ralph-loop \
-    -p "Test prompt" \
-    -c "DONE" \
-    --claude-path /tmp/mock-claude.sh
-```
+### Files
+- `src/agent.rs` - Add `ClaudeAgent` implementation
 
-### 4. Real Test (with iteration limit)
+### Dependencies
+- Phase 2 (Agent trait)
+- Phase 5 (process)
+- Phase 6 (monitor)
 
-```bash
-./target/release/ralph-loop \
-    -p "Say hello and output <promise>DONE</promise>" \
-    -c "DONE" \
-    -m 3
-```
+### Acceptance Criteria
+- [ ] Implements `Agent` trait
+- [ ] Spawns Claude, monitors output, returns `AgentResult`
+- [ ] Handles context limit via kill + appropriate `ExitReason`
 
-### 5. Infinite Loop Test
+---
 
-Runs until promise found or Ctrl+C:
+## Phase 8: CLI and Signal Handling
 
-```bash
-./target/release/ralph-loop \
-    -p "Keep trying until you succeed, then output <promise>DONE</promise>" \
-    -c "DONE"
-```
+**Goal**: Complete command-line interface with graceful shutdown.
+
+### Files
+- `src/main.rs` - Full CLI with clap, signal handling
+
+### Dependencies
+- All previous phases
+
+### Acceptance Criteria
+- [ ] All CLI flags from spec work (`-p`, `-f`, `-m`, `-c`, etc.)
+- [ ] TOML config file loading works
+- [ ] Ctrl+C triggers graceful shutdown
+- [ ] Exit codes reflect success/failure appropriately
+
+---
+
+## Phase 9: CI and Polish
+
+**Goal**: GitHub Actions, documentation, release build.
+
+### Files
+- `.github/workflows/ci.yml`
+- README updates
+
+### Acceptance Criteria
+- [ ] CI runs on push/PR to main
+- [ ] All jobs pass: check, test, fmt, clippy
+- [ ] `cargo build --release` produces working binary
+- [ ] Integration test with mock script passes
