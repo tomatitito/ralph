@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync:*)",
+      "WebSearch",
+      "Bash(uv run python:*)",
+      "Bash(uv run:*)",
+      "mcp__acp__Edit",
+      "Bash(ls:*)",
+      "Bash(for file in /Volumes/sourcecode/meta-breuninger/entdecken/reco/spikes/multimodale-embeddings/data/*.jsonl)",
+      "Bash(done)",
+      "Bash(git -C /Volumes/sourcecode/meta-breuninger/entdecken/reco/spikes/multimodale-embeddings log --oneline -20)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": {},
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/on_stop.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": {},
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/on_precompact.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
