@@ -1,0 +1,27 @@
+[package]
+name = "ralph-viewer"
+version = "0.1.0"
+edition = "2021"
+description = "Viewer for ralph-loop transcripts"
+license = "MIT"
+
+[[bin]]
+name = "ralph-viewer"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full", "sync", "signal"] }
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+colored = "2.1"
+inquire = "0.7"
+notify = "6.1"
+thiserror = "1.0"
+anyhow = "1.0"
+ctrlc = "3.4"
+dirs = "5.0"
+
+[dev-dependencies]
+tempfile = "3.10"

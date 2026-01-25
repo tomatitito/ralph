@@ -1,10 +1,15 @@
+use std::path::Path;
 use std::sync::Arc;
-use tracing::{debug, info};
+use tokio::sync::Mutex;
+use tracing::{debug, info, warn};
 
-use crate::agent::{Agent, AgentResult};
+use crate::agent::{Agent, AgentResult, ExitReason};
 use crate::config::Config;
 use crate::error::{RalphError, Result};
 use crate::state::SharedState;
+use crate::transcript::{
+    ExitReason as TranscriptExitReason, IterationEndReason, TranscriptWriter,
+};
 
 /// Result of the loop execution
 #[derive(Debug, Clone)]
@@ -28,6 +33,7 @@ pub struct LoopController<A: Agent> {
     config: Arc<Config>,
     agent: A,
     state: Arc<SharedState>,
+    transcript_writer: Option<Arc<Mutex<TranscriptWriter>>>,
 }
 
 impl<A: Agent> LoopController<A> {
@@ -37,7 +43,32 @@ impl<A: Agent> LoopController<A> {
             config: Arc::new(config),
             agent,
             state: SharedState::new_shared(),
+            transcript_writer: None,
         }
+    }
+
+    /// Create a new LoopController with a transcript writer
+    pub fn with_transcript_writer(
+        config: Config,
+        agent: A,
+        project_path: &Path,
+    ) -> Result<Self> {
+        let output_dir = &config.output_dir;
+        let writer = TranscriptWriter::new(
+            output_dir,
+            project_path,
+            &config.prompt,
+            None, // prompt_file not tracked at this level
+            config.completion_promise.clone(),
+            None, // auto-generate run_id
+        )?;
+
+        Ok(Self {
+            config: Arc::new(config),
+            agent,
+            state: SharedState::new_shared(),
+            transcript_writer: Some(Arc::new(Mutex::new(writer))),
+        })
     }
 
     /// Create a new LoopController with an existing shared state
@@ -46,6 +77,7 @@ impl<A: Agent> LoopController<A> {
             config: Arc::new(config),
             agent,
             state,
+            transcript_writer: None,
         }
     }
 
@@ -70,6 +102,13 @@ impl<A: Agent> LoopController<A> {
             // Check max iterations
             if let Some(max) = self.config.max_iterations {
                 if iteration > max {
+                    // Complete transcript with max iterations exceeded
+                    if let Some(ref writer) = self.transcript_writer {
+                        let mut writer = writer.lock().await;
+                        if let Err(e) = writer.complete(TranscriptExitReason::MaxIterationsExceeded) {
+                            warn!("Failed to complete transcript: {}", e);
+                        }
+                    }
                     return Err(RalphError::MaxIterationsExceeded(max));
                 }
             }
@@ -77,11 +116,57 @@ impl<A: Agent> LoopController<A> {
             info!("Starting iteration {}", iteration);
             debug!("Prompt: {}", prompt);
 
+            // Start iteration in transcript
+            if let Some(ref writer) = self.transcript_writer {
+                let mut writer = writer.lock().await;
+                if let Err(e) = writer.start_iteration() {
+                    warn!("Failed to start transcript iteration: {}", e);
+                }
+            }
+
             // Reset state for new iteration
             self.state.reset().await;
 
             // Run the agent
             let result: AgentResult = self.agent.run(prompt).await?;
+
+            // Record session ID if available
+            if let Some(ref session_id) = result.session_id {
+                if let Some(ref writer) = self.transcript_writer {
+                    let mut writer = writer.lock().await;
+                    if let Err(e) = writer.set_session_id(session_id.clone()) {
+                        warn!("Failed to set session ID: {}", e);
+                    }
+                }
+            }
+
+            // Determine end reason and record it
+            let (end_reason, input_tokens, output_tokens) = match result.exit_reason {
+                ExitReason::Natural => {
+                    if result.is_fulfilled() {
+                        (IterationEndReason::PromiseFound, 0, 0)
+                    } else {
+                        (IterationEndReason::Normal, 0, 0)
+                    }
+                }
+                ExitReason::ContextLimit => (IterationEndReason::ContextLimit, 0, 0),
+                ExitReason::Shutdown => (IterationEndReason::Interrupted, 0, 0),
+            };
+
+            // Get token usage from result if available
+            let (input_tokens, output_tokens) = if let Some(ref usage) = result.token_usage {
+                (usage.input_tokens, usage.output_tokens)
+            } else {
+                (input_tokens, output_tokens)
+            };
+
+            // End iteration in transcript
+            if let Some(ref writer) = self.transcript_writer {
+                let mut writer = writer.lock().await;
+                if let Err(e) = writer.end_iteration(end_reason, input_tokens, output_tokens) {
+                    warn!("Failed to end transcript iteration: {}", e);
+                }
+            }
 
             // Check if promise was found
             if result.is_fulfilled() {
@@ -90,6 +175,15 @@ impl<A: Agent> LoopController<A> {
                     "Promise fulfilled after {} iterations: {}",
                     iteration, promise
                 );
+
+                // Complete transcript
+                if let Some(ref writer) = self.transcript_writer {
+                    let mut writer = writer.lock().await;
+                    if let Err(e) = writer.complete(TranscriptExitReason::PromiseFulfilled) {
+                        warn!("Failed to complete transcript: {}", e);
+                    }
+                }
+
                 return Ok(LoopResult::PromiseFulfilled {
                     iterations: iteration,
                     promise,
@@ -107,7 +201,6 @@ impl<A: Agent> LoopController<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::ExitReason;
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -162,6 +255,8 @@ mod tests {
                 promise_found: None,
                 token_count: 200_000,
                 exit_reason: ExitReason::ContextLimit,
+                session_id: None,
+                token_usage: None,
             })
         }
     }

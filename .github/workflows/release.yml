@@ -9,8 +9,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    name: Build ${{ matrix.target }}
+  build-ralph-loop:
+    name: Build ralph-loop ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -51,9 +51,51 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ralph-loop-rs/${{ matrix.artifact_name }}.tar.gz
 
+  build-ralph-viewer:
+    name: Build ralph-viewer ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: ralph-viewer-macos-arm64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: ralph-viewer-linux-x86_64
+
+    defaults:
+      run:
+        working-directory: ralph-viewer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ralph-viewer -> target
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Create tarball
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czvf ../../../${{ matrix.artifact_name }}.tar.gz ralph-viewer
+          cd ../../..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ralph-viewer/${{ matrix.artifact_name }}.tar.gz
+
   release:
     name: Create Release
-    needs: build
+    needs: [build-ralph-loop, build-ralph-viewer]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -72,3 +114,5 @@ jobs:
           files: |
             artifacts/ralph-loop-macos-arm64/ralph-loop-macos-arm64.tar.gz
             artifacts/ralph-loop-linux-x86_64/ralph-loop-linux-x86_64.tar.gz
+            artifacts/ralph-viewer-macos-arm64/ralph-viewer-macos-arm64.tar.gz
+            artifacts/ralph-viewer-linux-x86_64/ralph-viewer-linux-x86_64.tar.gz

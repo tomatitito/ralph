@@ -34,6 +34,22 @@ pub enum RalphError {
     /// Error creating output directory
     #[error("failed to create output directory: {0}")]
     OutputDirError(#[source] std::io::Error),
+
+    /// Error writing transcript files
+    #[error("transcript write error: {0}")]
+    TranscriptWriteError(String),
+
+    /// Error parsing JSON from Claude's output
+    #[error("JSON parse error: {0}")]
+    JsonParseError(String),
+
+    /// Tmux is not available on this system
+    #[error("tmux is not available on this system")]
+    TmuxNotAvailable,
+
+    /// Error with tmux operations
+    #[error("tmux error: {0}")]
+    TmuxError(String),
 }
 
 /// Result type alias for Ralph operations

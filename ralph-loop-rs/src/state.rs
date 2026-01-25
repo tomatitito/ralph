@@ -64,6 +64,11 @@ impl SharedState {
         *self.token_count.write().await += count;
     }
 
+    /// Set the token count to a specific value
+    pub async fn set_tokens(&self, count: usize) {
+        *self.token_count.write().await = count;
+    }
+
     /// Check if the promise has been found
     pub async fn is_promise_found(&self) -> bool {
         *self.promise_found.read().await

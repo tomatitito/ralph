@@ -4,7 +4,7 @@ set -e
 REPO="tomatitito/ralph"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
-main() {
+get_platform_suffix() {
     os=$(uname -s | tr '[:upper:]' '[:lower:]')
     arch=$(uname -m)
 
@@ -12,7 +12,7 @@ main() {
         linux)
             case "$arch" in
                 x86_64|amd64)
-                    artifact="ralph-loop-linux-x86_64"
+                    echo "linux-x86_64"
                     ;;
                 *)
                     echo "Error: Unsupported Linux architecture: $arch" >&2
@@ -23,7 +23,7 @@ main() {
         darwin)
             case "$arch" in
                 arm64|aarch64)
-                    artifact="ralph-loop-macos-arm64"
+                    echo "macos-arm64"
                     ;;
                 *)
                     echo "Error: Unsupported macOS architecture: $arch (only Apple Silicon supported)" >&2
@@ -36,9 +36,14 @@ main() {
             exit 1
             ;;
     esac
+}
 
-    echo "Detected: $os/$arch"
-    echo "Fetching latest release..."
+install_binary() {
+    binary_name="$1"
+    platform_suffix="$2"
+    artifact="${binary_name}-${platform_suffix}"
+
+    echo "Fetching latest release for $binary_name..."
 
     latest_url=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
         grep "browser_download_url.*${artifact}.tar.gz" |
@@ -46,7 +51,7 @@ main() {
 
     if [ -z "$latest_url" ]; then
         echo "Error: Could not find release artifact for $artifact" >&2
-        exit 1
+        return 1
     fi
 
     echo "Downloading $artifact..."
@@ -57,10 +62,21 @@ main() {
     curl -fsSL "$latest_url" | tar -xz -C "$tmpdir"
 
     mkdir -p "$INSTALL_DIR"
-    mv "$tmpdir/ralph-loop" "$INSTALL_DIR/"
-    chmod +x "$INSTALL_DIR/ralph-loop"
+    mv "$tmpdir/$binary_name" "$INSTALL_DIR/"
+    chmod +x "$INSTALL_DIR/$binary_name"
 
-    echo "Installed ralph-loop to $INSTALL_DIR/ralph-loop"
+    echo "Installed $binary_name to $INSTALL_DIR/$binary_name"
+}
+
+main() {
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    arch=$(uname -m)
+    echo "Detected: $os/$arch"
+
+    platform_suffix=$(get_platform_suffix)
+
+    install_binary "ralph-loop" "$platform_suffix"
+    install_binary "ralph-viewer" "$platform_suffix"
 
     if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
         echo ""

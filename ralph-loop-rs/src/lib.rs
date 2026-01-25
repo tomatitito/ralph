@@ -7,11 +7,14 @@
 pub mod agent;
 pub mod config;
 pub mod error;
+pub mod json_events;
 pub mod loop_controller;
 pub mod monitor;
 pub mod process;
 pub mod state;
+pub mod tmux;
 pub mod token_counter;
+pub mod transcript;
 
 pub use agent::{Agent, AgentResult, ClaudeAgent, ExitReason};
 pub use config::Config;

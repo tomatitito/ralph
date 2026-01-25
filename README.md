@@ -8,10 +8,10 @@ A concurrent Rust application that runs Claude Code in a loop with real-time con
 curl -fsSL https://raw.githubusercontent.com/tomatitito/ralph/main/install.sh | sh
 ```
 
-This installs to `~/.local/bin`. Set `INSTALL_DIR` to customize:
+This installs to `~/.local/bin`. To install system-wide:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tomatitito/ralph/main/install.sh | INSTALL_DIR=/usr/local/bin sh
+curl -fsSL https://raw.githubusercontent.com/tomatitito/ralph/main/install.sh | sudo INSTALL_DIR=/usr/local/bin sh
 ```
 
 ## Usage

@@ -33,7 +33,7 @@ These transcripts include all messages, tool use, thinking, token usage, etc. **
 ┌──────────────────────────────────────┐
 │  .ralph-loop-output/                 │
 │  └── runs/<run-id>/                  │
-│      └── meta.json                   │
+│      └── .ralph-meta.json            │
 │          (maps iterations → sessions)│
 └──────────────────────────────────────┘
          │
@@ -60,15 +60,15 @@ These transcripts include all messages, tool use, thinking, token usage, etc. **
 .ralph-loop-output/
 ├── runs/
 │   ├── <run-id>/
-│   │   └── meta.json          # Run metadata with session mappings
+│   │   └── .ralph-meta.json   # Run metadata with session mappings
 │   └── <run-id>/
-│       └── meta.json
+│       └── .ralph-meta.json
 └── latest -> runs/<most-recent-run-id>/
 ```
 
 Note: No transcript files. Only metadata.
 
-### Run Metadata (`meta.json`)
+### Run Metadata (`.ralph-meta.json`)
 
 ```json
 {
@@ -125,7 +125,7 @@ Ralph-loop does NOT need to store the full transcript - Claude Code already does
 
 The viewer reads from two locations:
 
-1. **Run metadata**: `.ralph-loop-output/runs/<run-id>/meta.json`
+1. **Run metadata**: `.ralph-loop-output/runs/<run-id>/.ralph-meta.json`
    - Lists iterations and their session IDs
    - Provides run status, timing, configuration
 
@@ -215,51 +215,51 @@ The viewer shows:
 
 ### Phase 1: Update ralph-loop metadata
 
-- [ ] 1.1 Capture session ID from Claude Code output
+- [x] 1.1 Capture session ID from Claude Code output
   - Parse `init` or `result` events for `session_id`
   - Store in iteration metadata
 
-- [ ] 1.2 Update meta.json schema
+- [x] 1.2 Update meta.json schema
   - Add `project_path` field
   - Add `iterations` array with session mappings
   - Remove transcript file writing (no more `iteration_NNN.jsonl`)
 
-- [ ] 1.3 Update tests
+- [x] 1.3 Update tests
   - Test session ID extraction
   - Test new meta.json format
 
 ### Phase 2: Update ralph-viewer
 
-- [ ] 2.1 Read Claude Code transcripts
+- [x] 2.1 Read Claude Code transcripts
   - Locate `~/.claude/projects/<project-path>/`
   - Read `<session-id>.jsonl` files
   - Parse Claude Code's transcript format
 
-- [ ] 2.2 Map iterations to transcripts
+- [x] 2.2 Map iterations to transcripts
   - Read run metadata to get session IDs
   - Look up corresponding transcript files
   - Handle missing transcript files gracefully
 
-- [ ] 2.3 Update transcript parsing
+- [x] 2.3 Update transcript parsing
   - Adapt to Claude Code's event format (may differ from current)
   - Handle all event types: user, assistant, tool_use, tool_result, progress, etc.
 
-- [ ] 2.4 Update display formatting
+- [x] 2.4 Update display formatting
   - Show iteration headers based on metadata
   - Stream transcript content
 
 ### Phase 3: Polish
 
-- [ ] 3.1 Handle edge cases
+- [x] 3.1 Handle edge cases
   - Transcript file not found (session cleaned up)
   - Multiple projects with same run
   - Concurrent runs
 
-- [ ] 3.2 Add helpful messages
+- [x] 3.2 Add helpful messages
   - Show transcript file location
   - Warn if transcript appears incomplete
 
-- [ ] 3.3 Rename meta.json to .ralph-meta.json
+- [x] 3.3 Rename meta.json to .ralph-meta.json
   - Update ralph-loop to write `.ralph-meta.json` instead of `meta.json`
   - Update ralph-viewer to read from `.ralph-meta.json`
   - Update all documentation references

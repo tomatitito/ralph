@@ -85,7 +85,12 @@ fn default_claude_path() -> String {
 }
 
 fn default_claude_args() -> Vec<String> {
-    vec!["--dangerously-skip-permissions".to_string()]
+    vec![
+        "--print".to_string(),
+        "--output-format".to_string(),
+        "stream-json".to_string(),
+        "--dangerously-skip-permissions".to_string(),
+    ]
 }
 
 impl Default for Config {

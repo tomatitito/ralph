@@ -11,6 +11,7 @@ use ralph_loop::agent::ClaudeAgent;
 use ralph_loop::config::Config;
 use ralph_loop::error::RalphError;
 use ralph_loop::loop_controller::{LoopController, LoopResult};
+use ralph_loop::tmux;
 
 /// Ralph Loop: Run Claude Code in a loop until a promise is fulfilled
 #[derive(Parser, Debug)]
@@ -48,6 +49,22 @@ struct Cli {
     /// Enable verbose logging
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
+
+    /// Start ralph-loop in a new tmux session
+    #[arg(long = "tmux")]
+    tmux: bool,
+
+    /// Tmux session name (default: "ralph")
+    #[arg(long = "tmux-session", default_value = "ralph")]
+    tmux_session: String,
+
+    /// Also start the viewer in a separate tmux window
+    #[arg(long = "with-viewer")]
+    with_viewer: bool,
+
+    /// Attach to the tmux session after starting (only with --tmux)
+    #[arg(long = "attach")]
+    attach: bool,
 }
 
 fn setup_logging(verbose: bool) {
@@ -113,10 +130,22 @@ async fn run(
     }
     info!("Context limit: {} tokens", config.context_limit.max_tokens);
 
-    // Create the agent and controller
-    let config = Arc::new(config);
-    let agent = ClaudeAgent::new(Arc::clone(&config));
-    let controller = LoopController::new((*config).clone(), agent);
+    // Get current working directory as project path
+    let project_path = std::env::current_dir().map_err(RalphError::OutputDirError)?;
+
+    // Create the agent and controller with transcript writer
+    let agent = ClaudeAgent::new(Arc::new(config.clone()));
+    let controller = LoopController::with_transcript_writer(config, agent, &project_path)?;
+
+    info!(
+        "Transcripts will be read from: {}/.claude/projects/{}",
+        dirs::home_dir().unwrap_or_default().display(),
+        project_path
+            .to_string_lossy()
+            .replace('/', "-")
+            .strip_prefix('-')
+            .unwrap_or(&project_path.to_string_lossy().replace('/', "-"))
+    );
 
     // Run the loop with shutdown handling
     tokio::select! {
@@ -130,9 +159,128 @@ async fn run(
     }
 }
 
+/// Build the args to pass to ralph-loop when running inside tmux
+fn build_ralph_loop_args(cli: &Cli) -> Vec<String> {
+    let mut args = Vec::new();
+
+    if let Some(ref prompt_file) = cli.prompt_file {
+        args.push("-f".to_string());
+        args.push(prompt_file.display().to_string());
+    }
+
+    if let Some(ref prompt) = cli.prompt {
+        args.push("-p".to_string());
+        args.push(prompt.clone());
+    }
+
+    if let Some(max) = cli.max_iterations {
+        args.push("-m".to_string());
+        args.push(max.to_string());
+    }
+
+    if let Some(ref promise) = cli.completion_promise {
+        args.push("-c".to_string());
+        args.push(promise.clone());
+    }
+
+    if let Some(ref output_dir) = cli.output_dir {
+        args.push("-o".to_string());
+        args.push(output_dir.display().to_string());
+    }
+
+    if let Some(limit) = cli.context_limit {
+        args.push("--context-limit".to_string());
+        args.push(limit.to_string());
+    }
+
+    if let Some(ref config) = cli.config {
+        args.push("--config".to_string());
+        args.push(config.display().to_string());
+    }
+
+    if cli.verbose {
+        args.push("-v".to_string());
+    }
+
+    args
+}
+
+/// Handle tmux mode: start ralph-loop in a new tmux session
+fn handle_tmux_mode(cli: &Cli) {
+    if !tmux::is_tmux_available() {
+        eprintln!("{} tmux is not available on this system", "ERROR:".red().bold());
+        std::process::exit(1);
+    }
+
+    // Build args for the ralph-loop process inside tmux
+    let args = build_ralph_loop_args(cli);
+
+    // Get output directory for the viewer
+    let output_dir = cli.output_dir.clone().unwrap_or_else(|| PathBuf::from(".ralph-loop-output"));
+
+    // Find viewer if requested
+    let viewer_path = if cli.with_viewer {
+        tmux::find_viewer()
+    } else {
+        None
+    };
+
+    if cli.with_viewer && viewer_path.is_none() {
+        eprintln!(
+            "{} Could not find ralph-viewer. Make sure it's in the same directory as ralph-loop or in PATH.",
+            "WARNING:".yellow().bold()
+        );
+    }
+
+    // Start in tmux
+    match tmux::start_in_tmux_session(
+        &cli.tmux_session,
+        &args,
+        viewer_path.as_deref(),
+        &output_dir,
+    ) {
+        Ok(()) => {
+            println!(
+                "{} Started ralph-loop in tmux session '{}'",
+                "SUCCESS:".green().bold(),
+                cli.tmux_session.cyan()
+            );
+
+            if cli.with_viewer && viewer_path.is_some() {
+                println!(
+                    "  Viewer is running in the 'viewer' window"
+                );
+            }
+
+            if cli.attach {
+                println!("Attaching to session...");
+                if let Err(e) = tmux::attach_to_session(&cli.tmux_session) {
+                    eprintln!("{} Failed to attach: {}", "ERROR:".red().bold(), e);
+                    std::process::exit(1);
+                }
+            } else {
+                println!(
+                    "  Attach with: {}",
+                    format!("tmux attach -t {}", cli.tmux_session).cyan()
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("{} {}", "ERROR:".red().bold(), e);
+            std::process::exit(1);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+
+    // Handle tmux mode
+    if cli.tmux {
+        handle_tmux_mode(&cli);
+        return;
+    }
 
     setup_logging(cli.verbose);
 

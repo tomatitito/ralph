@@ -6,7 +6,8 @@ use tracing::{debug, info, warn};
 
 use crate::config::Config;
 use crate::error::Result;
-use crate::monitor::{spawn_monitors, ProcessCommand};
+use crate::json_events::TokenUsage;
+use crate::monitor::{spawn_monitors, MonitorResult, ProcessCommand};
 use crate::process::ClaudeProcess;
 use crate::state::SharedState;
 
@@ -32,6 +33,10 @@ pub struct AgentResult {
     pub token_count: usize,
     /// Why the agent invocation ended
     pub exit_reason: ExitReason,
+    /// Session ID captured from Claude Code
+    pub session_id: Option<String>,
+    /// Detailed token usage from Claude Code
+    pub token_usage: Option<TokenUsage>,
 }
 
 impl AgentResult {
@@ -42,6 +47,8 @@ impl AgentResult {
             promise_found: Some(promise.to_string()),
             token_count: 0,
             exit_reason: ExitReason::Natural,
+            session_id: None,
+            token_usage: None,
         }
     }
 
@@ -52,12 +59,21 @@ impl AgentResult {
             promise_found: None,
             token_count: 0,
             exit_reason: ExitReason::Natural,
+            session_id: None,
+            token_usage: None,
         }
     }
 
     /// Check if the completion promise was fulfilled
     pub fn is_fulfilled(&self) -> bool {
         self.promise_found.is_some()
+    }
+
+    /// Apply monitor result to this agent result
+    pub fn with_monitor_result(mut self, monitor_result: MonitorResult) -> Self {
+        self.session_id = monitor_result.session_id;
+        self.token_usage = monitor_result.token_usage;
+        self
     }
 }
 
@@ -88,13 +104,13 @@ impl Agent for ClaudeAgent {
         // Create command channel for monitors to send kill commands
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<ProcessCommand>(1);
 
-        // Spawn Claude process
+        // Spawn Claude process with stdin (for headless mode)
         debug!(
             "Spawning Claude process: {} {:?}",
             self.config.claude_path, self.config.claude_args
         );
         let mut process =
-            ClaudeProcess::spawn(&self.config.claude_path, &self.config.claude_args, prompt)
+            ClaudeProcess::spawn_with_stdin(&self.config.claude_path, &self.config.claude_args, prompt)
                 .await?;
 
         // Take stdout and stderr for monitoring
@@ -137,8 +153,9 @@ impl Agent for ClaudeAgent {
             }
         };
 
-        // Wait for monitors to finish
-        let _ = tokio::join!(stdout_handle, stderr_handle);
+        // Wait for monitors to finish and get results
+        let (stdout_result, _) = tokio::join!(stdout_handle, stderr_handle);
+        let monitor_result = stdout_result.unwrap_or_default();
 
         // Build result
         let output = state.get_output().await;
@@ -150,6 +167,8 @@ impl Agent for ClaudeAgent {
             promise_found,
             token_count,
             exit_reason,
+            session_id: monitor_result.session_id,
+            token_usage: monitor_result.token_usage,
         })
     }
 }
