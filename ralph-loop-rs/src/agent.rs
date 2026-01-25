@@ -109,9 +109,12 @@ impl Agent for ClaudeAgent {
             "Spawning Claude process: {} {:?}",
             self.config.claude_path, self.config.claude_args
         );
-        let mut process =
-            ClaudeProcess::spawn_with_stdin(&self.config.claude_path, &self.config.claude_args, prompt)
-                .await?;
+        let mut process = ClaudeProcess::spawn_with_stdin(
+            &self.config.claude_path,
+            &self.config.claude_args,
+            prompt,
+        )
+        .await?;
 
         // Take stdout and stderr for monitoring
         let stdout = process.stdout.take().expect("stdout not available");

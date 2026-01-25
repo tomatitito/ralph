@@ -50,8 +50,7 @@ pub fn start_in_tmux_session(
     }
 
     // Get the path to the current executable
-    let current_exe =
-        std::env::current_exe().map_err(|e| RalphError::TmuxError(e.to_string()))?;
+    let current_exe = std::env::current_exe().map_err(|e| RalphError::TmuxError(e.to_string()))?;
 
     // Build the ralph-loop command
     let mut ralph_cmd = format!("{}", current_exe.display());
@@ -97,11 +96,7 @@ pub fn start_in_tmux_session(
 
     // If viewer path is provided, start it in a new window
     if let Some(viewer) = viewer_path {
-        let viewer_cmd = format!(
-            "{} --dir {}",
-            viewer.display(),
-            output_dir.display()
-        );
+        let viewer_cmd = format!("{} --dir {}", viewer.display(), output_dir.display());
 
         let output = Command::new("tmux")
             .args([
@@ -142,7 +137,9 @@ pub fn attach_to_session(session_name: &str) -> Result<()> {
         .map_err(|e| RalphError::TmuxError(e.to_string()))?;
 
     if !status.success() {
-        return Err(RalphError::TmuxError("Failed to attach to session".to_string()));
+        return Err(RalphError::TmuxError(
+            "Failed to attach to session".to_string(),
+        ));
     }
 
     Ok(())
@@ -156,11 +153,7 @@ pub fn start_viewer_window(viewer_path: &Path, output_dir: &Path) -> Result<()> 
         ));
     }
 
-    let viewer_cmd = format!(
-        "{} --dir {}",
-        viewer_path.display(),
-        output_dir.display()
-    );
+    let viewer_cmd = format!("{} --dir {}", viewer_path.display(), output_dir.display());
 
     let output = Command::new("tmux")
         .args(["new-window", "-n", "viewer"])

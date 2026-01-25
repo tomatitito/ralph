@@ -52,13 +52,9 @@ pub enum ContentBlock {
 #[derive(Debug, Clone)]
 pub enum ClaudeEvent {
     /// System initialization
-    Init {
-        session_id: Option<String>,
-    },
+    Init { session_id: Option<String> },
     /// Assistant message content
-    Assistant {
-        content: Vec<ContentBlock>,
-    },
+    Assistant { content: Vec<ContentBlock> },
     /// Tool use request
     ToolUse {
         id: String,
@@ -66,10 +62,7 @@ pub enum ClaudeEvent {
         input: Value,
     },
     /// Tool result
-    ToolResult {
-        id: String,
-        content: String,
-    },
+    ToolResult { id: String, content: String },
     /// Final result with usage statistics
     Result {
         session_id: Option<String>,
@@ -77,10 +70,7 @@ pub enum ClaudeEvent {
         total_cost_usd: Option<f64>,
     },
     /// Unknown event type (for forward compatibility)
-    Unknown {
-        event_type: String,
-        raw: Value,
-    },
+    Unknown { event_type: String, raw: Value },
 }
 
 impl ClaudeEvent {
@@ -225,7 +215,8 @@ mod tests {
 
     #[test]
     fn test_parse_tool_use_event() {
-        let json = r#"{"type":"tool_use","id":"tool_123","name":"Read","input":{"file_path":"/test.rs"}}"#;
+        let json =
+            r#"{"type":"tool_use","id":"tool_123","name":"Read","input":{"file_path":"/test.rs"}}"#;
         let event = ClaudeEvent::parse(json).unwrap();
 
         if let ClaudeEvent::ToolUse { id, name, input } = event {

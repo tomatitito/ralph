@@ -75,10 +75,7 @@ impl JsonEventMonitor {
     }
 
     /// Monitor stdout for JSON events
-    pub async fn monitor_stream<R>(
-        &mut self,
-        reader: &mut BufReader<R>,
-    ) -> crate::error::Result<()>
+    pub async fn monitor_stream<R>(&mut self, reader: &mut BufReader<R>) -> crate::error::Result<()>
     where
         R: tokio::io::AsyncRead + Unpin,
     {
@@ -202,10 +199,7 @@ impl StderrMonitor {
     }
 
     /// Monitor stderr for plain text output
-    pub async fn monitor_stream<R>(
-        &mut self,
-        reader: &mut BufReader<R>,
-    ) -> crate::error::Result<()>
+    pub async fn monitor_stream<R>(&mut self, reader: &mut BufReader<R>) -> crate::error::Result<()>
     where
         R: tokio::io::AsyncRead + Unpin,
     {

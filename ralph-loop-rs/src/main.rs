@@ -208,7 +208,10 @@ fn build_ralph_loop_args(cli: &Cli) -> Vec<String> {
 /// Handle tmux mode: start ralph-loop in a new tmux session
 fn handle_tmux_mode(cli: &Cli) {
     if !tmux::is_tmux_available() {
-        eprintln!("{} tmux is not available on this system", "ERROR:".red().bold());
+        eprintln!(
+            "{} tmux is not available on this system",
+            "ERROR:".red().bold()
+        );
         std::process::exit(1);
     }
 
@@ -216,7 +219,10 @@ fn handle_tmux_mode(cli: &Cli) {
     let args = build_ralph_loop_args(cli);
 
     // Get output directory for the viewer
-    let output_dir = cli.output_dir.clone().unwrap_or_else(|| PathBuf::from(".ralph-loop-output"));
+    let output_dir = cli
+        .output_dir
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(".ralph-loop-output"));
 
     // Find viewer if requested
     let viewer_path = if cli.with_viewer {
@@ -247,9 +253,7 @@ fn handle_tmux_mode(cli: &Cli) {
             );
 
             if cli.with_viewer && viewer_path.is_some() {
-                println!(
-                    "  Viewer is running in the 'viewer' window"
-                );
+                println!("  Viewer is running in the 'viewer' window");
             }
 
             if cli.attach {

@@ -7,9 +7,7 @@ use crate::agent::{Agent, AgentResult, ExitReason};
 use crate::config::Config;
 use crate::error::{RalphError, Result};
 use crate::state::SharedState;
-use crate::transcript::{
-    ExitReason as TranscriptExitReason, IterationEndReason, TranscriptWriter,
-};
+use crate::transcript::{ExitReason as TranscriptExitReason, IterationEndReason, TranscriptWriter};
 
 /// Result of the loop execution
 #[derive(Debug, Clone)]
@@ -48,11 +46,7 @@ impl<A: Agent> LoopController<A> {
     }
 
     /// Create a new LoopController with a transcript writer
-    pub fn with_transcript_writer(
-        config: Config,
-        agent: A,
-        project_path: &Path,
-    ) -> Result<Self> {
+    pub fn with_transcript_writer(config: Config, agent: A, project_path: &Path) -> Result<Self> {
         let output_dir = &config.output_dir;
         let writer = TranscriptWriter::new(
             output_dir,
@@ -105,7 +99,8 @@ impl<A: Agent> LoopController<A> {
                     // Complete transcript with max iterations exceeded
                     if let Some(ref writer) = self.transcript_writer {
                         let mut writer = writer.lock().await;
-                        if let Err(e) = writer.complete(TranscriptExitReason::MaxIterationsExceeded) {
+                        if let Err(e) = writer.complete(TranscriptExitReason::MaxIterationsExceeded)
+                        {
                             warn!("Failed to complete transcript: {}", e);
                         }
                     }
