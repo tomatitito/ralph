@@ -190,6 +190,7 @@ impl JsonEventMonitor {
 }
 
 /// Plain text monitor for stderr
+#[derive(Default)]
 pub struct StderrMonitor;
 
 impl StderrMonitor {
