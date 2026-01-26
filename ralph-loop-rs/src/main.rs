@@ -46,7 +46,7 @@ struct Cli {
     #[arg(long = "config")]
     config: Option<PathBuf>,
 
-    /// Enable verbose logging
+    /// Enable verbose logging (debug level). Use RUST_LOG=ralph_loop=trace for trace level
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
 
@@ -68,7 +68,11 @@ struct Cli {
 }
 
 fn setup_logging(verbose: bool) {
-    let filter = if verbose {
+    // Allow RUST_LOG to override, otherwise use verbose flag
+    // Levels: info (default), debug (-v), trace (RUST_LOG=ralph_loop=trace)
+    let filter = if std::env::var("RUST_LOG").is_ok() {
+        EnvFilter::from_default_env()
+    } else if verbose {
         EnvFilter::new("ralph_loop=debug,info")
     } else {
         EnvFilter::new("ralph_loop=info,warn")

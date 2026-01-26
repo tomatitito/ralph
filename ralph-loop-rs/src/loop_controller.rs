@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::agent::{Agent, AgentResult, ExitReason};
 use crate::config::Config;
@@ -109,7 +109,8 @@ impl<A: Agent> LoopController<A> {
             }
 
             info!("Starting iteration {}", iteration);
-            debug!("Prompt: {}", prompt);
+            debug!("Prompt length: {} chars", prompt.len());
+            trace!("Prompt: {}", prompt);
 
             // Start iteration in transcript
             if let Some(ref writer) = self.transcript_writer {
@@ -120,10 +121,17 @@ impl<A: Agent> LoopController<A> {
             }
 
             // Reset state for new iteration
+            debug!("Resetting state for new iteration");
             self.state.reset().await;
 
             // Run the agent
+            debug!("Calling agent.run()...");
             let result: AgentResult = self.agent.run(prompt).await?;
+            debug!(
+                "Agent returned - exit_reason: {:?}, promise_found: {:?}",
+                result.exit_reason,
+                result.promise_found.is_some()
+            );
 
             // Record session ID if available
             if let Some(ref session_id) = result.session_id {

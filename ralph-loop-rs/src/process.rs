@@ -82,6 +82,11 @@ impl ClaudeProcess {
     pub fn try_wait(&mut self) -> Result<Option<std::process::ExitStatus>> {
         self.child.try_wait().map_err(RalphError::ProcessIoError)
     }
+
+    /// Get the process ID
+    pub fn id(&self) -> Option<u32> {
+        self.child.id()
+    }
 }
 
 /// Read lines from a buffered reader

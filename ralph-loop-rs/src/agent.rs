@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::sync::mpsc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::config::Config;
 use crate::error::Result;
@@ -99,6 +99,7 @@ impl ClaudeAgent {
 #[async_trait]
 impl Agent for ClaudeAgent {
     async fn run(&self, prompt: &str) -> Result<AgentResult> {
+        info!("Agent::run() starting");
         let state = SharedState::new_shared();
 
         // Create command channel for monitors to send kill commands
@@ -116,11 +117,16 @@ impl Agent for ClaudeAgent {
         )
         .await?;
 
+        let pid = process.id();
+        info!("Claude process spawned with PID: {:?}", pid);
+
         // Take stdout and stderr for monitoring
         let stdout = process.stdout.take().expect("stdout not available");
         let stderr = process.stderr.take().expect("stderr not available");
+        debug!("Captured stdout and stderr handles");
 
         // Spawn monitor tasks
+        debug!("Spawning stdout and stderr monitor tasks");
         let (stdout_handle, stderr_handle) = spawn_monitors(
             Arc::clone(&self.config),
             Arc::clone(&state),
@@ -128,8 +134,10 @@ impl Agent for ClaudeAgent {
             stderr,
             cmd_tx,
         );
+        debug!("Monitor tasks spawned successfully");
 
         // Wait for process to exit or kill command
+        debug!("Entering select! loop - waiting for process exit or kill command");
         let exit_reason = tokio::select! {
             // Wait for process to exit naturally
             status = process.wait() => {
@@ -155,15 +163,26 @@ impl Agent for ClaudeAgent {
                 }
             }
         };
+        debug!("Exited select! loop with reason: {:?}", exit_reason);
 
         // Wait for monitors to finish and get results
+        debug!("Waiting for monitor tasks to complete...");
         let (stdout_result, _) = tokio::join!(stdout_handle, stderr_handle);
+        debug!("Monitor tasks completed");
         let monitor_result = stdout_result.unwrap_or_default();
 
         // Build result
         let output = state.get_output().await;
         let token_count = state.get_token_count().await;
         let promise_found = state.get_promise_text().await;
+
+        info!(
+            "Agent::run() complete - token_count: {}, promise_found: {:?}, exit_reason: {:?}",
+            token_count,
+            promise_found.is_some(),
+            exit_reason
+        );
+        trace!("Promise text: {:?}", promise_found);
 
         Ok(AgentResult {
             output,

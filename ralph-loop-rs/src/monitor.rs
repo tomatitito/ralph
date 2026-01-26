@@ -6,7 +6,7 @@ use regex::Regex;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::config::Config;
 use crate::json_events::{ClaudeEvent, TokenUsage};
@@ -39,6 +39,10 @@ pub struct JsonEventMonitor {
     session_id: Option<String>,
     /// Captured token usage
     token_usage: Option<TokenUsage>,
+    /// Count of lines read
+    line_count: u64,
+    /// Count of events parsed successfully
+    event_count: u64,
 }
 
 impl JsonEventMonitor {
@@ -63,6 +67,8 @@ impl JsonEventMonitor {
             warning_emitted: false,
             session_id: None,
             token_usage: None,
+            line_count: 0,
+            event_count: 0,
         }
     }
 
@@ -79,19 +85,36 @@ impl JsonEventMonitor {
     where
         R: tokio::io::AsyncRead + Unpin,
     {
+        info!("stdout monitor: starting to read JSON events");
         let mut line = String::new();
         loop {
             line.clear();
+            trace!(
+                "stdout monitor: waiting for next line (read {} lines so far)",
+                self.line_count
+            );
             match reader.read_line(&mut line).await {
                 Ok(0) => {
-                    debug!("stdout stream closed");
+                    info!(
+                        "stdout monitor: stream closed - read {} lines, parsed {} events",
+                        self.line_count, self.event_count
+                    );
                     break;
                 }
-                Ok(_) => {
+                Ok(bytes) => {
+                    self.line_count += 1;
+                    trace!(
+                        "stdout monitor: read line {} ({} bytes)",
+                        self.line_count,
+                        bytes
+                    );
                     self.process_json_line(&line).await?;
                 }
                 Err(e) => {
-                    warn!("stdout read error: {}", e);
+                    warn!(
+                        "stdout monitor: read error after {} lines: {}",
+                        self.line_count, e
+                    );
                     break;
                 }
             }
@@ -103,6 +126,7 @@ impl JsonEventMonitor {
     async fn process_json_line(&mut self, line: &str) -> crate::error::Result<()> {
         let line = line.trim();
         if line.is_empty() {
+            trace!("stdout monitor: skipping empty line");
             return Ok(());
         }
 
@@ -114,10 +138,21 @@ impl JsonEventMonitor {
         let event = match ClaudeEvent::parse(line) {
             Ok(e) => e,
             Err(e) => {
-                debug!("Failed to parse JSON event: {} - line: {}", e, line);
+                debug!(
+                    "stdout monitor: failed to parse JSON event: {} - line: {}",
+                    e,
+                    if line.len() > 100 { &line[..100] } else { line }
+                );
                 return Ok(());
             }
         };
+
+        self.event_count += 1;
+        debug!(
+            "stdout monitor: parsed event #{} - type: {}",
+            self.event_count,
+            event.event_type()
+        );
 
         // Process based on event type
         match &event {
@@ -190,13 +225,20 @@ impl JsonEventMonitor {
 }
 
 /// Plain text monitor for stderr
-#[derive(Default)]
-pub struct StderrMonitor;
+pub struct StderrMonitor {
+    line_count: u64,
+}
+
+impl Default for StderrMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl StderrMonitor {
     /// Create a new StderrMonitor
     pub fn new() -> Self {
-        Self
+        Self { line_count: 0 }
     }
 
     /// Monitor stderr for plain text output
@@ -204,23 +246,31 @@ impl StderrMonitor {
     where
         R: tokio::io::AsyncRead + Unpin,
     {
+        debug!("stderr monitor: starting");
         let mut line = String::new();
         loop {
             line.clear();
             match reader.read_line(&mut line).await {
                 Ok(0) => {
-                    debug!("stderr stream closed");
+                    debug!(
+                        "stderr monitor: stream closed after {} lines",
+                        self.line_count
+                    );
                     break;
                 }
                 Ok(_) => {
+                    self.line_count += 1;
                     // stderr is informational/error messages, just log them
                     let trimmed = line.trim();
                     if !trimmed.is_empty() {
-                        debug!("stderr: {}", trimmed);
+                        debug!("stderr[{}]: {}", self.line_count, trimmed);
                     }
                 }
                 Err(e) => {
-                    warn!("stderr read error: {}", e);
+                    warn!(
+                        "stderr monitor: read error after {} lines: {}",
+                        self.line_count, e
+                    );
                     break;
                 }
             }
@@ -243,25 +293,31 @@ pub fn spawn_monitors(
     tokio::task::JoinHandle<MonitorResult>,
     tokio::task::JoinHandle<()>,
 ) {
+    debug!("spawn_monitors: creating stdout and stderr monitor tasks");
     let config_stdout = Arc::clone(&config);
     let state_stdout = Arc::clone(&state);
 
     let stdout_handle = tokio::spawn(async move {
+        debug!("stdout monitor task: started");
         let mut stdout = stdout;
         let mut monitor = JsonEventMonitor::new(config_stdout, state_stdout, cmd_tx);
         if let Err(e) = monitor.monitor_stream(&mut stdout).await {
             warn!("stdout monitor error: {}", e);
         }
+        debug!("stdout monitor task: exiting");
         monitor.result()
     });
 
     let stderr_handle = tokio::spawn(async move {
+        debug!("stderr monitor task: started");
         let mut stderr = stderr;
         let mut monitor = StderrMonitor::new();
         if let Err(e) = monitor.monitor_stream(&mut stderr).await {
             warn!("stderr monitor error: {}", e);
         }
+        debug!("stderr monitor task: exiting");
     });
 
+    debug!("spawn_monitors: tasks spawned successfully");
     (stdout_handle, stderr_handle)
 }

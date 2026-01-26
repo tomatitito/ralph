@@ -190,6 +190,18 @@ impl ClaudeEvent {
             _ => None,
         }
     }
+
+    /// Get the event type as a string for logging
+    pub fn event_type(&self) -> &str {
+        match self {
+            ClaudeEvent::Init { .. } => "init",
+            ClaudeEvent::Assistant { .. } => "assistant",
+            ClaudeEvent::ToolUse { .. } => "tool_use",
+            ClaudeEvent::ToolResult { .. } => "tool_result",
+            ClaudeEvent::Result { .. } => "result",
+            ClaudeEvent::Unknown { event_type, .. } => event_type,
+        }
+    }
 }
 
 #[cfg(test)]
