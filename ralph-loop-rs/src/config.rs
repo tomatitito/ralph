@@ -87,6 +87,7 @@ fn default_claude_path() -> String {
 fn default_claude_args() -> Vec<String> {
     vec![
         "--print".to_string(),
+        "--verbose".to_string(),
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--dangerously-skip-permissions".to_string(),
