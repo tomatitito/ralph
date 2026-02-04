@@ -6,6 +6,7 @@ mod error;
 mod formatter;
 mod picker;
 mod run;
+mod summary;
 mod transcript;
 mod watcher;
 
@@ -33,9 +34,13 @@ struct Cli {
     #[arg(long = "no-follow")]
     no_follow: bool,
 
-    /// List all runs and exit
+    /// List all runs in simple format
     #[arg(short = 'l', long = "list")]
     list: bool,
+
+    /// Show detailed summary of all runs (default when no run specified)
+    #[arg(short = 's', long = "summary")]
+    summary: bool,
 }
 
 fn default_output_dir() -> PathBuf {
@@ -66,7 +71,7 @@ async fn main() -> Result<()> {
         std::process::exit(1);
     }
 
-    // List mode: just show runs and exit
+    // List mode: just show runs in simple format and exit
     if cli.list {
         println!("Available runs in {}:", output_dir.display());
         println!();
@@ -79,6 +84,13 @@ async fn main() -> Result<()> {
                 run.prompt_preview
             );
         }
+        return Ok(());
+    }
+
+    // Summary mode: show detailed summary with duration, tokens, exit reason
+    // This is the default when no specific run is requested
+    if cli.summary || (cli.run.is_none() && cli.iteration.is_none()) {
+        summary::display_summary(&runs);
         return Ok(());
     }
 

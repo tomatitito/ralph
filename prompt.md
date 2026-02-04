@@ -1,11 +1,6 @@
-Work on what is described in `plan.md`. Pick the next highest priority task that's not yet completed. When you have completed it, mark it as completed in the plan file. Your work is done when there are no open points in the plan.md and everything has been implemented.
+The `ralph-viewer` returns an error when I try to use it. Use tmux to invoke it and see for yourself. Diagnose the error and write the analysis to `ralph-viewer-analysis.md`. If the file already exists, read it and fix ralph-viewer while also changing it's behaviour: it should show me the ralph-loops in the current directory with some level of detail as to why they finished, how long they ran and how many tokens were used. Also show me the currently running ralph-loop, if any, with information how long it has been running and how many tokens are used.
 
 Complete when:
 - All tests should pass.
-- ralph-loop application should still work as it does now.
-- Viewing a file with the viewer should look like intended.
-- It should be possible to select iteration files to view.
 - New functionality is properly tested.
-- ralph-loop can start itself in a tmux session with a given prompt, and logs are viewable in that session.
-- ralph-loop can start the viewer in a separate tmux session, where transcripts are viewable.
 - Output: <promise>COMPLETE</promise>

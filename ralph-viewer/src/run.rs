@@ -3,10 +3,41 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, ViewerError};
+
+/// Format a duration for human-readable display
+pub fn format_duration(duration: Duration) -> String {
+    let total_seconds = duration.num_seconds();
+    if total_seconds < 0 {
+        return "0s".to_string();
+    }
+
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+
+    if hours > 0 {
+        format!("{}h {}m {}s", hours, minutes, seconds)
+    } else if minutes > 0 {
+        format!("{}m {}s", minutes, seconds)
+    } else {
+        format!("{}s", seconds)
+    }
+}
+
+/// Format a token count for display (with K/M suffixes)
+pub fn format_tokens(tokens: usize) -> String {
+    if tokens >= 1_000_000 {
+        format!("{:.1}M", tokens as f64 / 1_000_000.0)
+    } else if tokens >= 1_000 {
+        format!("{:.1}K", tokens as f64 / 1_000.0)
+    } else {
+        tokens.to_string()
+    }
+}
 
 /// Status of a run
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -107,6 +138,75 @@ impl RunMetadata {
             .iter()
             .filter_map(|i| i.tokens.as_ref())
             .map(|t| t.input + t.output)
+            .sum()
+    }
+
+    /// Get the duration of the run
+    pub fn duration(&self) -> chrono::Duration {
+        let end = self.completed_at.unwrap_or_else(Utc::now);
+        end.signed_duration_since(self.started_at)
+    }
+
+    /// Format the duration for display
+    pub fn duration_display(&self) -> String {
+        format_duration(self.duration())
+    }
+
+    /// Get a human-readable exit reason
+    pub fn exit_reason_display(&self) -> &str {
+        if self.is_active() {
+            return "in progress";
+        }
+
+        // Check exit_reason field first
+        if let Some(ref reason) = self.exit_reason {
+            return match reason.as_str() {
+                "promise_fulfilled" => "promise found",
+                "max_iterations_exceeded" => "max iterations",
+                "interrupted" => "interrupted",
+                "error" => "error",
+                _ => reason.as_str(),
+            };
+        }
+
+        // Infer from status and last iteration
+        match self.status {
+            RunStatus::Completed => {
+                // Check if promise was found in last iteration
+                if let Some(last) = self.iterations.last() {
+                    if let Some(ref end_reason) = last.end_reason {
+                        return match end_reason {
+                            IterationEndReason::PromiseFound => "promise found",
+                            IterationEndReason::ContextLimit => "context limit",
+                            IterationEndReason::Normal => "completed",
+                            IterationEndReason::Interrupted => "interrupted",
+                            IterationEndReason::Error => "error",
+                        };
+                    }
+                }
+                "completed"
+            }
+            RunStatus::Failed => "error",
+            RunStatus::Interrupted => "interrupted",
+            RunStatus::Running => "in progress",
+        }
+    }
+
+    /// Get total input tokens across all iterations
+    pub fn total_input_tokens(&self) -> usize {
+        self.iterations
+            .iter()
+            .filter_map(|i| i.tokens.as_ref())
+            .map(|t| t.input)
+            .sum()
+    }
+
+    /// Get total output tokens across all iterations
+    pub fn total_output_tokens(&self) -> usize {
+        self.iterations
+            .iter()
+            .filter_map(|i| i.tokens.as_ref())
+            .map(|t| t.output)
             .sum()
     }
 
@@ -308,5 +408,108 @@ mod tests {
 
         assert_eq!(metadata.total_tokens(), 4500);
         assert_eq!(metadata.current_iteration(), 2);
+    }
+
+    #[test]
+    fn test_format_duration_seconds() {
+        assert_eq!(format_duration(Duration::seconds(45)), "45s");
+    }
+
+    #[test]
+    fn test_format_duration_minutes() {
+        assert_eq!(format_duration(Duration::seconds(125)), "2m 5s");
+    }
+
+    #[test]
+    fn test_format_duration_hours() {
+        assert_eq!(format_duration(Duration::seconds(3725)), "1h 2m 5s");
+    }
+
+    #[test]
+    fn test_format_duration_negative() {
+        assert_eq!(format_duration(Duration::seconds(-10)), "0s");
+    }
+
+    #[test]
+    fn test_format_tokens() {
+        assert_eq!(format_tokens(500), "500");
+        assert_eq!(format_tokens(1500), "1.5K");
+        assert_eq!(format_tokens(1_500_000), "1.5M");
+    }
+
+    #[test]
+    fn test_exit_reason_display_running() {
+        let metadata = RunMetadata {
+            run_id: "test".to_string(),
+            status: RunStatus::Running,
+            started_at: Utc::now(),
+            completed_at: None,
+            project_path: "/home/test".to_string(),
+            prompt_file: None,
+            prompt_preview: "test".to_string(),
+            completion_promise: "DONE".to_string(),
+            exit_reason: None,
+            iterations: vec![],
+        };
+        assert_eq!(metadata.exit_reason_display(), "in progress");
+    }
+
+    #[test]
+    fn test_exit_reason_display_promise_found() {
+        let metadata = RunMetadata {
+            run_id: "test".to_string(),
+            status: RunStatus::Completed,
+            started_at: Utc::now(),
+            completed_at: Some(Utc::now()),
+            project_path: "/home/test".to_string(),
+            prompt_file: None,
+            prompt_preview: "test".to_string(),
+            completion_promise: "DONE".to_string(),
+            exit_reason: Some("promise_fulfilled".to_string()),
+            iterations: vec![],
+        };
+        assert_eq!(metadata.exit_reason_display(), "promise found");
+    }
+
+    #[test]
+    fn test_exit_reason_display_from_iteration() {
+        let metadata = RunMetadata {
+            run_id: "test".to_string(),
+            status: RunStatus::Completed,
+            started_at: Utc::now(),
+            completed_at: Some(Utc::now()),
+            project_path: "/home/test".to_string(),
+            prompt_file: None,
+            prompt_preview: "test".to_string(),
+            completion_promise: "DONE".to_string(),
+            exit_reason: None,
+            iterations: vec![IterationMetadata {
+                iteration: 1,
+                session_id: None,
+                started_at: Utc::now(),
+                ended_at: Some(Utc::now()),
+                end_reason: Some(IterationEndReason::ContextLimit),
+                tokens: None,
+            }],
+        };
+        assert_eq!(metadata.exit_reason_display(), "context limit");
+    }
+
+    #[test]
+    fn test_duration_display() {
+        let started = Utc::now() - Duration::seconds(125);
+        let metadata = RunMetadata {
+            run_id: "test".to_string(),
+            status: RunStatus::Completed,
+            started_at: started,
+            completed_at: Some(Utc::now()),
+            project_path: "/home/test".to_string(),
+            prompt_file: None,
+            prompt_preview: "test".to_string(),
+            completion_promise: "DONE".to_string(),
+            exit_reason: None,
+            iterations: vec![],
+        };
+        assert_eq!(metadata.duration_display(), "2m 5s");
     }
 }
