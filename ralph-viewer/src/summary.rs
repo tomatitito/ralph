@@ -63,17 +63,17 @@ fn display_run_row(run: &RunMetadata) {
 
     // Format: [indicator] run_id | duration | iterations | tokens | exit reason | prompt preview
     println!(
-        "{} {} {} {} {} {} {} {} {} {}",
+        "{} {} {} {:>10} {} {} iter {} {:>8} tok {} {:12}",
         status_indicator,
         truncate(&run.run_id, 24).dimmed(),
         "|".dimmed(),
-        format!("{:>10}", duration).cyan(),
+        duration.cyan(),
         "|".dimmed(),
-        format!("{} iter", iterations),
+        iterations,
         "|".dimmed(),
-        format!("{:>8} tok", tokens),
+        tokens,
         "|".dimmed(),
-        format!("{:12}", exit_reason).yellow(),
+        exit_reason.yellow(),
     );
 
     // Second line: prompt preview

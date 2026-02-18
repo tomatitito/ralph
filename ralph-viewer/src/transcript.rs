@@ -48,6 +48,7 @@ pub enum ContentBlock {
 
 /// A parsed transcript event
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum TranscriptEvent {
     /// System initialization
     Init { session_id: Option<String> },
@@ -82,7 +83,10 @@ impl TranscriptEvent {
         }
 
         let value: Value = serde_json::from_str(line).ok()?;
-        let event_type = value.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+        let event_type = value
+            .get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("unknown");
 
         Some(match event_type {
             "init" | "system" => TranscriptEvent::Init {
@@ -104,7 +108,9 @@ impl TranscriptEvent {
                                 .map(|arr| {
                                     arr.iter()
                                         .filter_map(|item| {
-                                            if item.get("type").and_then(|t| t.as_str()) == Some("text") {
+                                            if item.get("type").and_then(|t| t.as_str())
+                                                == Some("text")
+                                            {
                                                 item.get("text").and_then(|t| t.as_str())
                                             } else {
                                                 None
@@ -183,6 +189,7 @@ impl TranscriptEvent {
     }
 
     /// Extract plain text content from an assistant event
+    #[allow(dead_code)]
     pub fn extract_text(&self) -> Option<String> {
         match self {
             TranscriptEvent::Assistant { content } => {
@@ -221,6 +228,7 @@ pub fn read_transcript(path: &Path) -> Result<Vec<TranscriptEvent>> {
 }
 
 /// Read events from a transcript file starting at a specific line
+#[allow(dead_code)]
 pub fn read_transcript_from_line(path: &Path, start_line: usize) -> Result<Vec<TranscriptEvent>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
@@ -245,7 +253,8 @@ mod tests {
 
     #[test]
     fn test_parse_assistant_event() {
-        let json = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello!"}]}}"#;
+        let json =
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello!"}]}}"#;
         let event = TranscriptEvent::parse(json).unwrap();
 
         if let TranscriptEvent::Assistant { content } = event {
@@ -269,7 +278,8 @@ mod tests {
 
     #[test]
     fn test_extract_text() {
-        let json = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}"#;
+        let json =
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}"#;
         let event = TranscriptEvent::parse(json).unwrap();
 
         assert_eq!(event.extract_text(), Some("Hello world".to_string()));

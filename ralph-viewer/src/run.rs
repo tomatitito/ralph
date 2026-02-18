@@ -193,6 +193,7 @@ impl RunMetadata {
     }
 
     /// Get total input tokens across all iterations
+    #[allow(dead_code)]
     pub fn total_input_tokens(&self) -> usize {
         self.iterations
             .iter()
@@ -202,6 +203,7 @@ impl RunMetadata {
     }
 
     /// Get total output tokens across all iterations
+    #[allow(dead_code)]
     pub fn total_output_tokens(&self) -> usize {
         self.iterations
             .iter()
@@ -278,6 +280,7 @@ impl RunDiscovery {
     }
 
     /// Get a specific run by ID
+    #[allow(dead_code)]
     pub fn get_run(&self, run_id: &str) -> Result<RunMetadata> {
         let run_dir = self.runs_dir.join(run_id);
         if !run_dir.exists() {

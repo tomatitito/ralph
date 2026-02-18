@@ -59,13 +59,14 @@ fn display_iteration(run: &RunMetadata, iteration_index: usize) -> Result<()> {
                     "⚠".yellow(),
                     path.display()
                 );
-                eprintln!(
-                    "    The session transcript may have been cleaned up by Claude Code."
-                );
+                eprintln!("    The session transcript may have been cleaned up by Claude Code.");
             }
         }
         None => {
-            eprintln!("  {} No session ID recorded for this iteration", "⚠".yellow());
+            eprintln!(
+                "  {} No session ID recorded for this iteration",
+                "⚠".yellow()
+            );
         }
     }
     Ok(())

@@ -54,10 +54,7 @@ async fn main() -> Result<()> {
     let output_dir = cli.output_dir.unwrap_or_else(default_output_dir);
 
     if !output_dir.exists() {
-        eprintln!(
-            "Output directory does not exist: {}",
-            output_dir.display()
-        );
+        eprintln!("Output directory does not exist: {}", output_dir.display());
         eprintln!("Run ralph-loop first to create transcripts.");
         std::process::exit(1);
     }
@@ -98,7 +95,7 @@ async fn main() -> Result<()> {
     let selected_run = if let Some(run_id) = cli.run {
         runs.into_iter()
             .find(|r| r.run_id == run_id || r.run_id.starts_with(&run_id))
-            .ok_or_else(|| error::ViewerError::RunNotFound(run_id))?
+            .ok_or(error::ViewerError::RunNotFound(run_id))?
     } else if runs.len() == 1 {
         // Auto-select single run
         runs.into_iter().next().unwrap()

@@ -32,9 +32,7 @@ pub fn select_run(runs: Vec<RunMetadata>) -> Result<RunMetadata> {
     // Find the matching run by the selection string
     let index = runs
         .iter()
-        .position(|r| {
-            selection.starts_with(&r.run_id)
-        })
+        .position(|r| selection.starts_with(&r.run_id))
         .ok_or(ViewerError::UserCancelled)?;
 
     Ok(runs.into_iter().nth(index).unwrap())
@@ -51,10 +49,7 @@ pub fn select_iteration(run: &RunMetadata) -> Result<Option<u32>> {
 
     // Add "current (live)" option if run is active
     if run.is_active() {
-        options.push(format!(
-            "current (iteration {}, live)",
-            current
-        ));
+        options.push(format!("current (iteration {}, live)", current));
     }
 
     // Add individual iterations
