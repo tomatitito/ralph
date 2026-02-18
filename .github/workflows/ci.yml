@@ -10,8 +10,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: Check
+  # ralph-loop-rs checks
+  check-ralph-loop:
+    name: Check ralph-loop
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -24,8 +25,8 @@ jobs:
           workspaces: ralph-loop-rs -> target
       - run: cargo check --all-targets
 
-  test:
-    name: Test
+  test-ralph-loop:
+    name: Test ralph-loop
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,8 +39,8 @@ jobs:
           workspaces: ralph-loop-rs -> target
       - run: cargo test
 
-  fmt:
-    name: Format
+  fmt-ralph-loop:
+    name: Format ralph-loop
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,8 +52,8 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all --check
 
-  clippy:
-    name: Clippy
+  clippy-ralph-loop:
+    name: Clippy ralph-loop
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -67,8 +68,8 @@ jobs:
           workspaces: ralph-loop-rs -> target
       - run: cargo clippy --all-targets -- -D warnings
 
-  build-release:
-    name: Build Release
+  build-ralph-loop:
+    name: Build ralph-loop Release
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -84,3 +85,79 @@ jobs:
         with:
           name: ralph-loop-linux
           path: ralph-loop-rs/target/release/ralph-loop
+
+  # ralph-viewer checks
+  check-ralph-viewer:
+    name: Check ralph-viewer
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ralph-viewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ralph-viewer -> target
+      - run: cargo check --all-targets
+
+  test-ralph-viewer:
+    name: Test ralph-viewer
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ralph-viewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ralph-viewer -> target
+      - run: cargo test
+
+  fmt-ralph-viewer:
+    name: Format ralph-viewer
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ralph-viewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy-ralph-viewer:
+    name: Clippy ralph-viewer
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ralph-viewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ralph-viewer -> target
+      - run: cargo clippy --all-targets -- -D warnings
+
+  build-ralph-viewer:
+    name: Build ralph-viewer Release
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ralph-viewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ralph-viewer -> target
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ralph-viewer-linux
+          path: ralph-viewer/target/release/ralph-viewer
