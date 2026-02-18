@@ -1,6 +1,6 @@
-The `ralph-viewer` returns an error when I try to use it. Use tmux to invoke it and see for yourself. Diagnose the error and write the analysis to `ralph-viewer-analysis.md`. If the file already exists, read it and fix ralph-viewer while also changing it's behaviour: it should show me the ralph-loops in the current directory with some level of detail as to why they finished, how long they ran and how many tokens were used. Also show me the currently running ralph-loop, if any, with information how long it has been running and how many tokens are used.
+The `ralph-loop` and `ralph-viewer` applications should use the version from the cargo.toml files. This is what the `--version` flag should show. When this version is changed, a new release should be created via the github workflow.
 
 Complete when:
-- All tests should pass.
+- All tests still pass.
 - New functionality is properly tested.
 - Output: <promise>COMPLETE</promise>
