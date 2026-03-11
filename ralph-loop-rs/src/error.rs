@@ -43,13 +43,6 @@ pub enum RalphError {
     #[error("JSON parse error: {0}")]
     JsonParseError(String),
 
-    /// Tmux is not available on this system
-    #[error("tmux is not available on this system")]
-    TmuxNotAvailable,
-
-    /// Error with tmux operations
-    #[error("tmux error: {0}")]
-    TmuxError(String),
 }
 
 /// Result type alias for Ralph operations
