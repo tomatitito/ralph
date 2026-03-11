@@ -1,4 +1,4 @@
-The `ralph-loop` and `ralph-viewer` applications should use the version from the cargo.toml files. This is what the `--version` flag should show. When this version is changed, a new release should be created via the github workflow.
+The `ralph-loop` application should use the version from the cargo.toml file. This is what the `--version` flag should show. When this version is changed, a new release should be created via the github workflow.
 
 Complete when:
 - All tests still pass.

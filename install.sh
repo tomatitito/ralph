@@ -76,7 +76,6 @@ main() {
     platform_suffix=$(get_platform_suffix)
 
     install_binary "ralph-loop" "$platform_suffix"
-    install_binary "ralph-viewer" "$platform_suffix"
 
     if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
         echo ""
