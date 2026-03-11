@@ -1,6 +1,6 @@
 [package]
 name = "ralph-loop"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 description = "A concurrent Rust application that runs Claude Code in a loop with real-time context monitoring"
 license = "MIT"
