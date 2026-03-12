@@ -42,7 +42,6 @@ pub enum RalphError {
     /// Error parsing JSON from Claude's output
     #[error("JSON parse error: {0}")]
     JsonParseError(String),
-
 }
 
 /// Result type alias for Ralph operations

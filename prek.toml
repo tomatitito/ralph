@@ -1,0 +1,10 @@
+[[repos]]
+repo = "local"
+hooks = [
+    { id = "cargo-fmt",
+      name = "cargo fmt",
+      language = "system",
+      entry = "cargo fmt --manifest-path ralph-loop-rs/Cargo.toml",
+      files = "\\.rs$",
+      pass_filenames = false },
+]
