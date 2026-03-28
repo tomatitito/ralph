@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/tomatitito/ralph/main/install.sh | 
 This installs to `~/.local/bin`. To install system-wide:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tomatitito/ralph/main/install.sh | sudo INSTALL_DIR=/usr/local/bin sh
+curl -fsSL https://raw.githubusercontent.com/tomatitito/ralph/main/install.sh | sudo INSTALL_DIR=~/.local/bin sh
 ```
 
 ## Usage
