@@ -36,7 +36,7 @@ The main loop uses `tokio::select!` to handle multiple concurrent events:
 
 ```rust
 tokio::select! {
-    // Wait for Claude to exit naturally
+    // Wait for the agent process to exit naturally
     exit_status = process.wait() => {
         // Check if promise was found in output
         if *state.promise_found.read().await {
@@ -70,7 +70,7 @@ loop:
         return MaxIterationsReached
 
     reset_state()
-    spawn_claude(prompt)
+    spawn_agent(prompt)
     spawn_monitors(stdout, stderr)
 
     select!:

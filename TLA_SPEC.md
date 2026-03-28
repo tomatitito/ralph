@@ -58,7 +58,7 @@ The implementation must mirror the TLA+ state machine:
 | TLA+ Variable | Rust Equivalent |
 |---------------|-----------------|
 | `loopState` | `LoopController` return value / internal state |
-| `processState` | `ClaudeProcess` status |
+| `processState` | agent process status |
 | `tokenCount` | `SharedState::token_count` |
 | `promiseFound` | `SharedState::promise_found` |
 | `monitorActive` | Monitor task handles |

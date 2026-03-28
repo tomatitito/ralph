@@ -17,3 +17,6 @@ ralph-loop [OPTIONS] <PROMPT_FILE | -p "PROMPT">
 | `-o, --output-dir <DIR>` | Output directory (default: .ralph-loop-output) |
 | `--context-limit <N>` | Token limit (default: 180000) |
 | `--config <FILE>` | Config file (TOML) |
+| `--agent-provider <PROVIDER>` | Coding agent backend: `claude` or `codex` |
+| `--agent-path <PATH>` | Path to the coding agent executable |
+| `--agent-arg <ARG>` | Extra CLI arg passed through to the coding agent (repeatable) |

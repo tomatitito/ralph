@@ -1,6 +1,6 @@
 # Ralph Loop Rust Specification
 
-A concurrent Rust application that runs Claude Code in a loop with real-time context monitoring. It spawns Claude as a subprocess and concurrently monitors output for token count and completion promises.
+A concurrent Rust application that runs coding agents in a loop with real-time context monitoring. It spawns a supported agent CLI as a subprocess and concurrently monitors output for token count and completion promises.
 
 ## Documentation
 
@@ -21,9 +21,9 @@ ralph-loop/
     ├── main.rs              # CLI entry point, signal handling
     ├── lib.rs               # Library exports
     ├── config.rs            # Configuration structures
-    ├── agent.rs             # Agent trait + ClaudeAgent implementation
+    ├── agent.rs             # Agent trait + CLI-backed production implementation
     ├── loop_controller.rs   # Main orchestration (generic over Agent)
-    ├── process.rs           # Claude subprocess management
+    ├── process.rs           # Agent subprocess management
     ├── monitor.rs           # Output monitoring (tokens + promises)
     ├── token_counter.rs     # Token estimation
     ├── state.rs             # Shared state and events

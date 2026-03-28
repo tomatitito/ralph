@@ -3,13 +3,23 @@
 ## Configuration (`config.rs`)
 
 ```rust
+pub enum AgentProvider {
+    Claude,
+    Codex,
+}
+
+pub struct AgentConfig {
+    pub provider: AgentProvider,
+    pub path: Option<String>,
+    pub args: Option<Vec<String>>,
+}
+
 pub struct Config {
     pub max_iterations: Option<u32>,   // None = infinite loop, Some(n) = limit to n iterations
     pub completion_promise: String,    // Default: "TASK COMPLETE"
     pub context_limit: ContextLimitConfig,
     pub output_dir: PathBuf,
-    pub claude_path: String,           // Default: "claude"
-    pub claude_args: Vec<String>,      // Default: ["--dangerously-skip-permissions"]
+    pub agent: AgentConfig,
 }
 
 pub struct ContextLimitConfig {
@@ -32,7 +42,7 @@ pub struct SharedState {
 
 ## Process Management (`process.rs`)
 
-- Spawn Claude with `tokio::process::Command`
+- Spawn the configured agent CLI with `tokio::process::Command`
 - Pipe prompt to stdin
 - Capture stdout/stderr as async streams
 - Provide `kill()` method for proactive termination
@@ -56,7 +66,7 @@ Three estimation methods:
 
 ## Agent Trait (`agent.rs`)
 
-Abstraction over the Claude subprocess to enable dependency injection and testing:
+Abstraction over the configured agent subprocess to enable dependency injection and testing:
 
 ```rust
 /// Result of a single agent invocation
@@ -82,7 +92,7 @@ impl AgentResult {
     }
 }
 
-/// Trait for agent implementations (real Claude or mock)
+/// Trait for agent implementations
 #[async_trait]
 pub trait Agent: Send + Sync {
     async fn run(&self, prompt: &str) -> Result<AgentResult, RalphError>;
@@ -91,7 +101,7 @@ pub trait Agent: Send + Sync {
 
 ### Implementations
 
-- **ClaudeAgent**: Production implementation that spawns Claude subprocess
+- **CliAgent**: Production implementation that spawns the configured coding agent subprocess
 - **MockAgent**: Test implementation with configurable behavior
 
 ## Loop Controller (`loop_controller.rs`)

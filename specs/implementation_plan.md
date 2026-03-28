@@ -77,13 +77,13 @@ This document describes the phased approach to implementing ralph-loop. Each pha
 
 ## Phase 5: Process Management ✅ COMPLETE
 
-**Goal**: Spawn and manage Claude subprocess.
+**Goal**: Spawn and manage the coding agent subprocess.
 
 ### Files
-- `src/process.rs` - `ClaudeProcess` wrapper
+- `src/process.rs` - process wrapper
 
 ### Dependencies
-- Phase 1 (config for claude_path)
+- Phase 1 (agent execution config)
 
 ### Acceptance Criteria
 - [x] Can spawn subprocess with piped stdin/stdout/stderr
@@ -113,12 +113,12 @@ This document describes the phased approach to implementing ralph-loop. Each pha
 
 ---
 
-## Phase 7: ClaudeAgent Implementation ✅ COMPLETE
+## Phase 7: Production Agent Implementation ✅ COMPLETE
 
 **Goal**: Production agent that wires process + monitor together.
 
 ### Files
-- `src/agent.rs` - Add `ClaudeAgent` implementation
+- `src/agent.rs` - Add the production `Agent` implementation
 
 ### Dependencies
 - Phase 2 (Agent trait)
@@ -127,7 +127,7 @@ This document describes the phased approach to implementing ralph-loop. Each pha
 
 ### Acceptance Criteria
 - [x] Implements `Agent` trait
-- [x] Spawns Claude, monitors output, returns `AgentResult`
+- [x] Spawns the configured agent, monitors output, returns `AgentResult`
 - [x] Handles context limit via kill + appropriate `ExitReason`
 
 ---
