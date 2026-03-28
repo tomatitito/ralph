@@ -1,18 +1,12 @@
-//! JSON event parsing for Claude's streaming output.
-//!
-//! Claude's `--output-format stream-json` produces JSONL with these event types:
-//! - `init`: System initialization message
-//! - `assistant`: Claude's response content
-//! - `tool_use`: Tool call requests
-//! - `tool_result`: Tool call results
-//! - `result`: Final summary with token usage and cost
+//! JSON event parsing for supported coding agent CLIs.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::config::AgentProvider;
 use crate::error::{RalphError, Result};
 
-/// Token usage statistics from a result event
+/// Token usage statistics from an agent result event
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TokenUsage {
     #[serde(default)]
@@ -23,6 +17,8 @@ pub struct TokenUsage {
     pub cache_creation_input_tokens: usize,
     #[serde(default)]
     pub cache_read_input_tokens: usize,
+    #[serde(default)]
+    pub cached_input_tokens: usize,
 }
 
 impl TokenUsage {
@@ -48,34 +44,25 @@ pub enum ContentBlock {
     Other,
 }
 
-/// A parsed Claude streaming event
+/// A normalized parsed JSON event from a supported agent backend
 #[derive(Debug, Clone)]
-pub enum ClaudeEvent {
-    /// System initialization
-    Init { session_id: Option<String> },
+pub enum AgentEvent {
+    /// Session or thread start
+    SessionStart { session_id: Option<String> },
     /// Assistant message content
-    Assistant { content: Vec<ContentBlock> },
-    /// Tool use request
-    ToolUse {
-        id: String,
-        name: String,
-        input: Value,
-    },
-    /// Tool result
-    ToolResult { id: String, content: String },
-    /// Final result with usage statistics
+    AssistantMessage { text: String },
+    /// Final result with token usage statistics
     Result {
         session_id: Option<String>,
         usage: TokenUsage,
-        total_cost_usd: Option<f64>,
     },
     /// Unknown event type (for forward compatibility)
     Unknown { event_type: String, raw: Value },
 }
 
-impl ClaudeEvent {
-    /// Parse a JSON line into a ClaudeEvent
-    pub fn parse(line: &str) -> Result<Self> {
+impl AgentEvent {
+    /// Parse a JSON line into a normalized agent event
+    pub fn parse(provider: AgentProvider, line: &str) -> Result<Self> {
         let line = line.trim();
         if line.is_empty() {
             return Err(RalphError::JsonParseError("Empty line".to_string()));
@@ -84,101 +71,16 @@ impl ClaudeEvent {
         let value: Value =
             serde_json::from_str(line).map_err(|e| RalphError::JsonParseError(e.to_string()))?;
 
-        let event_type = value
-            .get("type")
-            .and_then(|t| t.as_str())
-            .unwrap_or("unknown");
-
-        match event_type {
-            "init" | "system" => Ok(ClaudeEvent::Init {
-                session_id: value
-                    .get("session_id")
-                    .and_then(|s| s.as_str())
-                    .map(String::from),
-            }),
-            "assistant" => {
-                let content = if let Some(message) = value.get("message") {
-                    // New format: { type: "assistant", message: { content: [...] } }
-                    message
-                        .get("content")
-                        .and_then(|c| serde_json::from_value(c.clone()).ok())
-                        .unwrap_or_default()
-                } else if let Some(content) = value.get("content") {
-                    // Direct content array
-                    serde_json::from_value(content.clone()).unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
-                Ok(ClaudeEvent::Assistant { content })
-            }
-            "tool_use" => {
-                let id = value
-                    .get("id")
-                    .and_then(|s| s.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let name = value
-                    .get("name")
-                    .and_then(|s| s.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let input = value.get("input").cloned().unwrap_or(Value::Null);
-                Ok(ClaudeEvent::ToolUse { id, name, input })
-            }
-            "tool_result" => {
-                let id = value
-                    .get("tool_use_id")
-                    .or_else(|| value.get("id"))
-                    .and_then(|s| s.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let content = value
-                    .get("content")
-                    .and_then(|c| c.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                Ok(ClaudeEvent::ToolResult { id, content })
-            }
-            "result" => {
-                let session_id = value
-                    .get("session_id")
-                    .and_then(|s| s.as_str())
-                    .map(String::from);
-                let usage = value
-                    .get("usage")
-                    .and_then(|u| serde_json::from_value(u.clone()).ok())
-                    .unwrap_or_default();
-                let total_cost_usd = value.get("total_cost_usd").and_then(|c| c.as_f64());
-                Ok(ClaudeEvent::Result {
-                    session_id,
-                    usage,
-                    total_cost_usd,
-                })
-            }
-            _ => Ok(ClaudeEvent::Unknown {
-                event_type: event_type.to_string(),
-                raw: value,
-            }),
+        match provider {
+            AgentProvider::Claude => parse_claude_event(value),
+            AgentProvider::Codex => parse_codex_event(value),
         }
     }
 
     /// Extract plain text content from an assistant event
-    pub fn extract_text(&self) -> Option<String> {
+    pub fn extract_text(&self) -> Option<&str> {
         match self {
-            ClaudeEvent::Assistant { content } => {
-                let texts: Vec<String> = content
-                    .iter()
-                    .filter_map(|block| match block {
-                        ContentBlock::Text { text } => Some(text.clone()),
-                        _ => None,
-                    })
-                    .collect();
-                if texts.is_empty() {
-                    None
-                } else {
-                    Some(texts.join("\n"))
-                }
-            }
+            AgentEvent::AssistantMessage { text } => Some(text),
             _ => None,
         }
     }
@@ -186,7 +88,7 @@ impl ClaudeEvent {
     /// Check if this event contains token usage info
     pub fn get_usage(&self) -> Option<&TokenUsage> {
         match self {
-            ClaudeEvent::Result { usage, .. } => Some(usage),
+            AgentEvent::Result { usage, .. } => Some(usage),
             _ => None,
         }
     }
@@ -194,13 +96,112 @@ impl ClaudeEvent {
     /// Get the event type as a string for logging
     pub fn event_type(&self) -> &str {
         match self {
-            ClaudeEvent::Init { .. } => "init",
-            ClaudeEvent::Assistant { .. } => "assistant",
-            ClaudeEvent::ToolUse { .. } => "tool_use",
-            ClaudeEvent::ToolResult { .. } => "tool_result",
-            ClaudeEvent::Result { .. } => "result",
-            ClaudeEvent::Unknown { event_type, .. } => event_type,
+            AgentEvent::SessionStart { .. } => "session_start",
+            AgentEvent::AssistantMessage { .. } => "assistant_message",
+            AgentEvent::Result { .. } => "result",
+            AgentEvent::Unknown { event_type, .. } => event_type,
         }
+    }
+}
+
+fn parse_claude_event(value: Value) -> Result<AgentEvent> {
+    let event_type = value
+        .get("type")
+        .and_then(|t| t.as_str())
+        .unwrap_or("unknown");
+
+    match event_type {
+        "init" | "system" => Ok(AgentEvent::SessionStart {
+            session_id: value
+                .get("session_id")
+                .and_then(|s| s.as_str())
+                .map(String::from),
+        }),
+        "assistant" => {
+            let content: Vec<ContentBlock> = if let Some(message) = value.get("message") {
+                message
+                    .get("content")
+                    .and_then(|c| serde_json::from_value(c.clone()).ok())
+                    .unwrap_or_default()
+            } else if let Some(content) = value.get("content") {
+                serde_json::from_value(content.clone()).unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+
+            let text = content
+                .iter()
+                .filter_map(|block| match block {
+                    ContentBlock::Text { text } => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            Ok(AgentEvent::AssistantMessage { text })
+        }
+        "result" => {
+            let session_id = value
+                .get("session_id")
+                .and_then(|s| s.as_str())
+                .map(String::from);
+            let usage = value
+                .get("usage")
+                .and_then(|u| serde_json::from_value(u.clone()).ok())
+                .unwrap_or_default();
+            Ok(AgentEvent::Result { session_id, usage })
+        }
+        _ => Ok(AgentEvent::Unknown {
+            event_type: event_type.to_string(),
+            raw: value,
+        }),
+    }
+}
+
+fn parse_codex_event(value: Value) -> Result<AgentEvent> {
+    let event_type = value
+        .get("type")
+        .and_then(|t| t.as_str())
+        .unwrap_or("unknown");
+
+    match event_type {
+        "thread.started" => Ok(AgentEvent::SessionStart {
+            session_id: value
+                .get("thread_id")
+                .and_then(|s| s.as_str())
+                .map(String::from),
+        }),
+        "item.completed" => {
+            let item = value.get("item").cloned().unwrap_or(Value::Null);
+            let item_type = item.get("type").and_then(|t| t.as_str()).unwrap_or("");
+            if item_type == "agent_message" {
+                let text = item
+                    .get("text")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                Ok(AgentEvent::AssistantMessage { text })
+            } else {
+                Ok(AgentEvent::Unknown {
+                    event_type: event_type.to_string(),
+                    raw: value,
+                })
+            }
+        }
+        "turn.completed" => {
+            let usage = value
+                .get("usage")
+                .and_then(|u| serde_json::from_value(u.clone()).ok())
+                .unwrap_or_default();
+            Ok(AgentEvent::Result {
+                session_id: None,
+                usage,
+            })
+        }
+        _ => Ok(AgentEvent::Unknown {
+            event_type: event_type.to_string(),
+            raw: value,
+        }),
     }
 }
 
@@ -209,84 +210,61 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_assistant_event() {
+    fn test_parse_claude_assistant_event() {
         let json = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello, world!"}]}}"#;
-        let event = ClaudeEvent::parse(json).unwrap();
+        let event = AgentEvent::parse(AgentProvider::Claude, json).unwrap();
 
-        if let ClaudeEvent::Assistant { content } = event {
-            assert_eq!(content.len(), 1);
-            if let ContentBlock::Text { text } = &content[0] {
-                assert_eq!(text, "Hello, world!");
-            } else {
-                panic!("Expected text block");
-            }
-        } else {
-            panic!("Expected assistant event");
-        }
+        assert_eq!(event.extract_text(), Some("Hello, world!"));
     }
 
     #[test]
-    fn test_parse_tool_use_event() {
-        let json =
-            r#"{"type":"tool_use","id":"tool_123","name":"Read","input":{"file_path":"/test.rs"}}"#;
-        let event = ClaudeEvent::parse(json).unwrap();
-
-        if let ClaudeEvent::ToolUse { id, name, input } = event {
-            assert_eq!(id, "tool_123");
-            assert_eq!(name, "Read");
-            assert_eq!(input["file_path"], "/test.rs");
-        } else {
-            panic!("Expected tool_use event");
-        }
-    }
-
-    #[test]
-    fn test_parse_result_event() {
+    fn test_parse_claude_result_event() {
         let json = r#"{"type":"result","session_id":"sess_123","usage":{"input_tokens":1000,"output_tokens":500},"total_cost_usd":0.05}"#;
-        let event = ClaudeEvent::parse(json).unwrap();
+        let event = AgentEvent::parse(AgentProvider::Claude, json).unwrap();
 
-        if let ClaudeEvent::Result {
-            session_id,
-            usage,
-            total_cost_usd,
-        } = event
-        {
+        if let AgentEvent::Result { session_id, usage } = event {
             assert_eq!(session_id, Some("sess_123".to_string()));
             assert_eq!(usage.input_tokens, 1000);
             assert_eq!(usage.output_tokens, 500);
             assert_eq!(usage.total(), 1500);
-            assert_eq!(total_cost_usd, Some(0.05));
         } else {
             panic!("Expected result event");
         }
     }
 
     #[test]
-    fn test_parse_unknown_event() {
-        let json = r#"{"type":"future_event","data":"something"}"#;
-        let event = ClaudeEvent::parse(json).unwrap();
+    fn test_parse_codex_thread_started_event() {
+        let json = r#"{"type":"thread.started","thread_id":"thread_123"}"#;
+        let event = AgentEvent::parse(AgentProvider::Codex, json).unwrap();
 
-        if let ClaudeEvent::Unknown { event_type, .. } = event {
-            assert_eq!(event_type, "future_event");
+        if let AgentEvent::SessionStart { session_id } = event {
+            assert_eq!(session_id, Some("thread_123".to_string()));
         } else {
-            panic!("Expected unknown event");
+            panic!("Expected session_start event");
         }
     }
 
     #[test]
-    fn test_extract_text() {
-        let json = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"},{"type":"text","text":"World"}]}}"#;
-        let event = ClaudeEvent::parse(json).unwrap();
+    fn test_parse_codex_agent_message_event() {
+        let json = r#"{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"hello\nTASK COMPLETE"}}"#;
+        let event = AgentEvent::parse(AgentProvider::Codex, json).unwrap();
 
-        let text = event.extract_text().unwrap();
-        assert_eq!(text, "Hello\nWorld");
+        assert_eq!(event.extract_text(), Some("hello\nTASK COMPLETE"));
     }
 
     #[test]
-    fn test_extract_text_no_content() {
-        let json = r#"{"type":"result","usage":{}}"#;
-        let event = ClaudeEvent::parse(json).unwrap();
+    fn test_parse_codex_turn_completed_event() {
+        let json = r#"{"type":"turn.completed","usage":{"input_tokens":17725,"cached_input_tokens":3456,"output_tokens":45}}"#;
+        let event = AgentEvent::parse(AgentProvider::Codex, json).unwrap();
 
-        assert!(event.extract_text().is_none());
+        if let AgentEvent::Result { session_id, usage } = event {
+            assert_eq!(session_id, None);
+            assert_eq!(usage.input_tokens, 17725);
+            assert_eq!(usage.cached_input_tokens, 3456);
+            assert_eq!(usage.output_tokens, 45);
+            assert_eq!(usage.total(), 17770);
+        } else {
+            panic!("Expected result event");
+        }
     }
 }

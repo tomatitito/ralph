@@ -12,6 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+use crate::config::AgentProvider;
 use crate::error::{RalphError, Result};
 
 /// Status of a run
@@ -65,7 +66,7 @@ pub enum IterationEndReason {
 pub struct IterationMetadata {
     /// Iteration number (1-indexed)
     pub iteration: u32,
-    /// Claude Code session ID
+    /// Agent session or thread ID
     pub session_id: Option<String>,
     /// When this iteration started
     pub started_at: DateTime<Utc>,
@@ -106,6 +107,8 @@ pub struct RunMetadata {
     pub prompt_file: Option<String>,
     /// First 100 characters of the prompt
     pub prompt_preview: String,
+    /// The coding agent backend used for this run
+    pub agent_provider: AgentProvider,
     /// The completion promise being looked for
     pub completion_promise: String,
     /// Why the run ended (if finished)
@@ -122,6 +125,7 @@ impl RunMetadata {
         project_path: String,
         prompt: &str,
         prompt_file: Option<String>,
+        agent_provider: AgentProvider,
         completion_promise: String,
     ) -> Self {
         let prompt_preview = if prompt.len() > 100 {
@@ -138,6 +142,7 @@ impl RunMetadata {
             project_path,
             prompt_file,
             prompt_preview,
+            agent_provider,
             completion_promise,
             exit_reason: None,
             iterations: Vec::new(),
@@ -162,8 +167,8 @@ impl RunMetadata {
 /// Manages run metadata for a single run.
 ///
 /// Note: This writer no longer writes transcript files (iteration_NNN.jsonl).
-/// Claude Code stores transcripts at ~/.claude/projects/<project-path>/<session-id>.jsonl
-/// and we only store metadata with session ID mappings.
+/// The backing CLI may store its own transcript/session files separately and we
+/// only store Ralph metadata with session ID mappings.
 pub struct TranscriptWriter {
     /// Base output directory (.ralph-loop-output)
     output_dir: PathBuf,
@@ -180,6 +185,7 @@ impl TranscriptWriter {
         project_path: &Path,
         prompt: &str,
         prompt_file: Option<String>,
+        agent_provider: AgentProvider,
         completion_promise: String,
         run_id: Option<String>,
     ) -> Result<Self> {
@@ -204,6 +210,7 @@ impl TranscriptWriter {
             project_path_str,
             prompt,
             prompt_file,
+            agent_provider,
             completion_promise,
         );
 
@@ -344,6 +351,7 @@ pub fn generate_run_id() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::AgentProvider;
     use tempfile::TempDir;
 
     #[test]
@@ -366,6 +374,7 @@ mod tests {
             project_path,
             "Test prompt",
             None,
+            AgentProvider::Claude,
             "TASK COMPLETE".to_string(),
             Some("test-run-123".to_string()),
         )
@@ -391,6 +400,7 @@ mod tests {
             project_path,
             "Test prompt",
             None,
+            AgentProvider::Claude,
             "TASK COMPLETE".to_string(),
             Some("test-run-456".to_string()),
         )
@@ -416,6 +426,7 @@ mod tests {
             project_path,
             "Test prompt",
             None,
+            AgentProvider::Claude,
             "TASK COMPLETE".to_string(),
             Some("test-run-789".to_string()),
         )
@@ -446,6 +457,7 @@ mod tests {
             project_path,
             "Test prompt",
             None,
+            AgentProvider::Claude,
             "TASK COMPLETE".to_string(),
             Some("test-run-end".to_string()),
         )
@@ -471,6 +483,7 @@ mod tests {
             "/home/test/project".to_string(),
             "A long prompt that is over 100 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor.",
             Some("task.txt".to_string()),
+            AgentProvider::Claude,
             "DONE".to_string(),
         );
 
@@ -478,6 +491,7 @@ mod tests {
         assert!(metadata.prompt_preview.ends_with("..."));
         assert!(metadata.prompt_preview.len() <= 103); // 100 + "..."
         assert_eq!(metadata.project_path, "/home/test/project");
+        assert_eq!(metadata.agent_provider, AgentProvider::Claude);
         assert!(metadata.iterations.is_empty());
 
         let json = serde_json::to_string_pretty(&metadata).unwrap();
@@ -493,6 +507,7 @@ mod tests {
             "/project".to_string(),
             "prompt",
             None,
+            AgentProvider::Claude,
             "DONE".to_string(),
         );
 

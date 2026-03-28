@@ -7,12 +7,12 @@ use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
-use ralph_loop::agent::ClaudeAgent;
-use ralph_loop::config::Config;
+use ralph_loop::agent::CliAgent;
+use ralph_loop::config::{AgentProvider, CliOverrides, Config};
 use ralph_loop::error::RalphError;
 use ralph_loop::loop_controller::{LoopController, LoopResult};
 
-/// Ralph Loop: Run Claude Code in a loop until a promise is fulfilled
+/// Ralph Loop: Run a coding agent in a loop until a promise is fulfilled
 #[derive(Parser, Debug)]
 #[command(name = "ralph-loop")]
 #[command(version, about, long_about = None)]
@@ -44,6 +44,18 @@ struct Cli {
     /// Config file (TOML format)
     #[arg(long = "config")]
     config: Option<PathBuf>,
+
+    /// Coding agent backend to use
+    #[arg(long = "agent-provider", value_enum)]
+    agent_provider: Option<AgentProvider>,
+
+    /// Path to the coding agent executable
+    #[arg(long = "agent-path")]
+    agent_path: Option<String>,
+
+    /// Extra CLI args passed to the coding agent
+    #[arg(long = "agent-arg")]
+    agent_args: Vec<String>,
 
     /// Enable verbose logging (debug level). Use RUST_LOG=ralph_loop=trace for trace level
     #[arg(short = 'v', long = "verbose")]
@@ -83,13 +95,20 @@ fn load_config(cli: &Cli) -> Result<Config, RalphError> {
     };
 
     // Merge CLI arguments
-    config.merge_cli_args(
+    config.merge_cli_args(CliOverrides {
         prompt,
-        cli.max_iterations,
-        cli.completion_promise.clone(),
-        cli.output_dir.clone(),
-        cli.context_limit,
-    );
+        max_iterations: cli.max_iterations,
+        completion_promise: cli.completion_promise.clone(),
+        output_dir: cli.output_dir.clone(),
+        context_limit: cli.context_limit,
+        agent_provider: cli.agent_provider,
+        agent_path: cli.agent_path.clone(),
+        agent_args: if cli.agent_args.is_empty() {
+            None
+        } else {
+            Some(cli.agent_args.clone())
+        },
+    });
 
     // Validate that we have a prompt
     if config.prompt.is_empty() {
@@ -110,6 +129,11 @@ async fn run(
         "Starting ralph-loop with completion promise: {}",
         config.completion_promise.cyan()
     );
+    info!(
+        "Agent provider: {:?} ({})",
+        config.agent_provider(),
+        config.agent_path()
+    );
     if let Some(max) = config.max_iterations {
         info!("Max iterations: {}", max);
     } else {
@@ -121,18 +145,9 @@ async fn run(
     let project_path = std::env::current_dir().map_err(RalphError::OutputDirError)?;
 
     // Create the agent and controller with transcript writer
-    let agent = ClaudeAgent::new(Arc::new(config.clone()));
+    let agent = CliAgent::new(Arc::new(config.clone()));
     let controller = LoopController::with_transcript_writer(config, agent, &project_path)?;
-
-    info!(
-        "Transcripts will be read from: {}/.claude/projects/{}",
-        dirs::home_dir().unwrap_or_default().display(),
-        project_path
-            .to_string_lossy()
-            .replace('/', "-")
-            .strip_prefix('-')
-            .unwrap_or(&project_path.to_string_lossy().replace('/', "-"))
-    );
+    info!("Run metadata will be written to .ralph-loop-output/runs");
 
     // Run the loop with shutdown handling
     tokio::select! {

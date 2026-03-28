@@ -53,6 +53,7 @@ impl<A: Agent> LoopController<A> {
             project_path,
             &config.prompt,
             None, // prompt_file not tracked at this level
+            config.agent_provider(),
             config.completion_promise.clone(),
             None, // auto-generate run_id
         )?;

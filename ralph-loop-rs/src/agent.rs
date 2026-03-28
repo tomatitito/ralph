@@ -8,10 +8,10 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::json_events::TokenUsage;
 use crate::monitor::{spawn_monitors, MonitorResult, ProcessCommand};
-use crate::process::ClaudeProcess;
+use crate::process::AgentProcess;
 use crate::state::SharedState;
 
-/// The reason a Claude agent invocation ended
+/// The reason an agent invocation ended
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitReason {
     /// Process exited naturally
@@ -33,9 +33,9 @@ pub struct AgentResult {
     pub token_count: usize,
     /// Why the agent invocation ended
     pub exit_reason: ExitReason,
-    /// Session ID captured from Claude Code
+    /// Session or thread ID captured from the agent backend
     pub session_id: Option<String>,
-    /// Detailed token usage from Claude Code
+    /// Detailed token usage from the agent backend
     pub token_usage: Option<TokenUsage>,
 }
 
@@ -77,27 +77,27 @@ impl AgentResult {
     }
 }
 
-/// Trait for agent implementations (real Claude or mock)
+/// Trait for agent implementations
 #[async_trait]
 pub trait Agent: Send + Sync {
     /// Run the agent with the given prompt
     async fn run(&self, prompt: &str) -> Result<AgentResult>;
 }
 
-/// Production implementation of Agent that spawns Claude subprocess
-pub struct ClaudeAgent {
+/// Production implementation of Agent that spawns a configured CLI subprocess
+pub struct CliAgent {
     config: Arc<Config>,
 }
 
-impl ClaudeAgent {
-    /// Create a new ClaudeAgent with the given configuration
+impl CliAgent {
+    /// Create a new CliAgent with the given configuration
     pub fn new(config: Arc<Config>) -> Self {
         Self { config }
     }
 }
 
 #[async_trait]
-impl Agent for ClaudeAgent {
+impl Agent for CliAgent {
     async fn run(&self, prompt: &str) -> Result<AgentResult> {
         info!("Agent::run() starting");
         let state = SharedState::new_shared();
@@ -105,20 +105,14 @@ impl Agent for ClaudeAgent {
         // Create command channel for monitors to send kill commands
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<ProcessCommand>(1);
 
-        // Spawn Claude process with stdin (for headless mode)
-        debug!(
-            "Spawning Claude process: {} {:?}",
-            self.config.claude_path, self.config.claude_args
-        );
-        let mut process = ClaudeProcess::spawn_with_stdin(
-            &self.config.claude_path,
-            &self.config.claude_args,
-            prompt,
-        )
-        .await?;
+        // Spawn configured agent process with stdin (for headless mode)
+        let agent_path = self.config.agent_path();
+        let agent_args = self.config.agent_args();
+        debug!("Spawning agent process: {} {:?}", agent_path, agent_args);
+        let mut process = AgentProcess::spawn_with_stdin(&agent_path, &agent_args, prompt).await?;
 
         let pid = process.id();
-        info!("Claude process spawned with PID: {:?}", pid);
+        info!("Agent process spawned with PID: {:?}", pid);
 
         // Take stdout and stderr for monitoring
         let stdout = process.stdout.take().expect("stdout not available");
@@ -143,11 +137,11 @@ impl Agent for ClaudeAgent {
             status = process.wait() => {
                 match status {
                     Ok(s) => {
-                        info!("Claude process exited with status: {:?}", s);
+                        info!("Agent process exited with status: {:?}", s);
                         ExitReason::Natural
                     }
                     Err(e) => {
-                        warn!("Error waiting for Claude process: {}", e);
+                        warn!("Error waiting for agent process: {}", e);
                         ExitReason::Natural
                     }
                 }
@@ -156,7 +150,7 @@ impl Agent for ClaudeAgent {
             Some(cmd) = cmd_rx.recv() => {
                 match cmd {
                     ProcessCommand::Kill => {
-                        info!("Killing Claude process due to context limit");
+                        info!("Killing agent process due to context limit");
                         let _ = process.kill().await;
                         ExitReason::ContextLimit
                     }

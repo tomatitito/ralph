@@ -1,6 +1,6 @@
-//! Output monitoring for Claude process streams.
+//! Output monitoring for coding agent process streams.
 //!
-//! In headless mode, stdout produces JSON events while stderr is plain text.
+//! In supported headless modes, stdout produces JSON events while stderr is plain text.
 
 use regex::Regex;
 use std::sync::Arc;
@@ -8,8 +8,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
 use tracing::{debug, info, trace, warn};
 
-use crate::config::Config;
-use crate::json_events::{ClaudeEvent, TokenUsage};
+use crate::config::{AgentProvider, Config};
+use crate::json_events::{AgentEvent, TokenUsage};
 use crate::state::SharedState;
 
 /// Commands that can be sent from the monitor to the controller
@@ -19,7 +19,7 @@ pub enum ProcessCommand {
     Kill,
 }
 
-/// Result from monitoring a Claude session
+/// Result from monitoring an agent session
 #[derive(Debug, Clone, Default)]
 pub struct MonitorResult {
     /// Session ID captured from init or result event
@@ -31,6 +31,7 @@ pub struct MonitorResult {
 /// JSON event monitor for stdout (in headless mode)
 pub struct JsonEventMonitor {
     config: Arc<Config>,
+    provider: AgentProvider,
     state: Arc<SharedState>,
     promise_regex: Regex,
     cmd_tx: mpsc::Sender<ProcessCommand>,
@@ -60,6 +61,7 @@ impl JsonEventMonitor {
         .expect("Invalid promise regex");
 
         Self {
+            provider: config.agent_provider(),
             config,
             state,
             promise_regex,
@@ -135,7 +137,7 @@ impl JsonEventMonitor {
         self.state.append_output("\n").await;
 
         // Parse the JSON event
-        let event = match ClaudeEvent::parse(line) {
+        let event = match AgentEvent::parse(self.provider, line) {
             Ok(e) => e,
             Err(e) => {
                 debug!(
@@ -156,17 +158,15 @@ impl JsonEventMonitor {
 
         // Process based on event type
         match &event {
-            ClaudeEvent::Init { session_id } => {
-                // Capture session ID from init event
+            AgentEvent::SessionStart { session_id } => {
                 if let Some(sid) = session_id {
-                    debug!("Captured session ID from init: {}", sid);
+                    debug!("Captured session ID: {}", sid);
                     self.session_id = Some(sid.clone());
                 }
             }
-            ClaudeEvent::Assistant { .. } => {
-                // Check for promise in text content
+            AgentEvent::AssistantMessage { .. } => {
                 if let Some(text) = event.extract_text() {
-                    if self.promise_regex.is_match(&text) {
+                    if self.promise_regex.is_match(text) {
                         info!(
                             "Promise found in output: {}",
                             self.config.completion_promise
@@ -177,26 +177,19 @@ impl JsonEventMonitor {
                     }
                 }
             }
-            ClaudeEvent::Result {
-                session_id, usage, ..
-            } => {
-                // Capture session ID from result event (may override init)
+            AgentEvent::Result { session_id, usage } => {
                 if let Some(sid) = session_id {
                     debug!("Captured session ID from result: {}", sid);
                     self.session_id = Some(sid.clone());
                 }
 
-                // Capture token usage
                 self.token_usage = Some(usage.clone());
 
-                // Update token count with actual usage from Claude
                 let total = usage.total();
                 debug!("Result event: {} total tokens", total);
 
-                // Set the token count to the actual value
                 self.state.set_tokens(total).await;
 
-                // Check for warning threshold
                 if !self.warning_emitted && total >= self.config.context_limit.warning_threshold {
                     warn!(
                         "Context limit warning: {} tokens (threshold: {})",
@@ -205,7 +198,6 @@ impl JsonEventMonitor {
                     self.warning_emitted = true;
                 }
 
-                // Check for context limit
                 if total >= self.config.context_limit.max_tokens {
                     info!(
                         "Context limit reached: {} tokens (limit: {})",
@@ -215,7 +207,6 @@ impl JsonEventMonitor {
                 }
             }
             _ => {
-                // Other event types - just logged for debugging
                 debug!("Event: {:?}", event);
             }
         }

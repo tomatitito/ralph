@@ -1,3 +1,4 @@
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -46,10 +47,58 @@ impl Default for ContextLimitConfig {
     }
 }
 
+/// Supported coding agent backends
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentProvider {
+    /// Anthropic Claude Code CLI
+    #[default]
+    Claude,
+    /// OpenAI Codex CLI
+    Codex,
+}
+
+/// Agent execution configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+    /// Which coding agent backend to invoke
+    #[serde(default)]
+    pub provider: AgentProvider,
+    /// Path to the agent CLI executable
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Additional arguments to pass to the agent CLI
+    #[serde(default)]
+    pub args: Option<Vec<String>>,
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        Self {
+            provider: AgentProvider::Claude,
+            path: None,
+            args: None,
+        }
+    }
+}
+
+/// CLI-provided config overrides
+#[derive(Debug, Clone, Default)]
+pub struct CliOverrides {
+    pub prompt: Option<String>,
+    pub max_iterations: Option<u32>,
+    pub completion_promise: Option<String>,
+    pub output_dir: Option<PathBuf>,
+    pub context_limit: Option<usize>,
+    pub agent_provider: Option<AgentProvider>,
+    pub agent_path: Option<String>,
+    pub agent_args: Option<Vec<String>>,
+}
+
 /// Main configuration for the ralph-loop application
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// The prompt to send to Claude
+    /// The prompt to send to the configured coding agent
     #[serde(default)]
     pub prompt: String,
     /// Maximum number of iterations (None = infinite loop)
@@ -64,12 +113,15 @@ pub struct Config {
     /// Directory for output files
     #[serde(default = "default_output_dir")]
     pub output_dir: PathBuf,
-    /// Path to the Claude CLI executable
-    #[serde(default = "default_claude_path")]
-    pub claude_path: String,
-    /// Additional arguments to pass to Claude
-    #[serde(default = "default_claude_args")]
-    pub claude_args: Vec<String>,
+    /// Coding agent execution settings
+    #[serde(default)]
+    pub agent: AgentConfig,
+    /// Legacy Claude CLI path setting kept for backward compatibility
+    #[serde(default)]
+    pub claude_path: Option<String>,
+    /// Legacy Claude CLI args kept for backward compatibility
+    #[serde(default)]
+    pub claude_args: Option<Vec<String>>,
 }
 
 fn default_completion_promise() -> String {
@@ -82,6 +134,10 @@ fn default_output_dir() -> PathBuf {
 
 fn default_claude_path() -> String {
     "claude".to_string()
+}
+
+fn default_codex_path() -> String {
+    "codex".to_string()
 }
 
 fn default_claude_args() -> Vec<String> {
@@ -102,8 +158,9 @@ impl Default for Config {
             completion_promise: default_completion_promise(),
             context_limit: ContextLimitConfig::default(),
             output_dir: default_output_dir(),
-            claude_path: default_claude_path(),
-            claude_args: default_claude_args(),
+            agent: AgentConfig::default(),
+            claude_path: None,
+            claude_args: None,
         }
     }
 }
@@ -113,33 +170,88 @@ impl Config {
     pub fn from_file(path: &std::path::Path) -> crate::error::Result<Self> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| crate::error::RalphError::ConfigError(e.to_string()))?;
-        toml::from_str(&content).map_err(|e| crate::error::RalphError::ConfigError(e.to_string()))
+        let mut config: Self = toml::from_str(&content)
+            .map_err(|e| crate::error::RalphError::ConfigError(e.to_string()))?;
+        config.apply_legacy_defaults();
+        Ok(config)
     }
 
     /// Merge CLI arguments into this configuration
     /// CLI arguments take precedence over config file values
-    pub fn merge_cli_args(
-        &mut self,
-        prompt: Option<String>,
-        max_iterations: Option<u32>,
-        completion_promise: Option<String>,
-        output_dir: Option<PathBuf>,
-        context_limit: Option<usize>,
-    ) {
-        if let Some(p) = prompt {
+    pub fn merge_cli_args(&mut self, overrides: CliOverrides) {
+        if let Some(p) = overrides.prompt {
             self.prompt = p;
         }
-        if max_iterations.is_some() {
-            self.max_iterations = max_iterations;
+        if overrides.max_iterations.is_some() {
+            self.max_iterations = overrides.max_iterations;
         }
-        if let Some(cp) = completion_promise {
+        if let Some(cp) = overrides.completion_promise {
             self.completion_promise = cp;
         }
-        if let Some(od) = output_dir {
+        if let Some(od) = overrides.output_dir {
             self.output_dir = od;
         }
-        if let Some(cl) = context_limit {
+        if let Some(cl) = overrides.context_limit {
             self.context_limit.max_tokens = cl;
         }
+        if let Some(provider) = overrides.agent_provider {
+            self.agent.provider = provider;
+        }
+        if let Some(path) = overrides.agent_path {
+            self.agent.path = Some(path);
+        }
+        if let Some(args) = overrides.agent_args {
+            self.agent.args = Some(args);
+        }
+        self.apply_legacy_defaults();
     }
+
+    /// The effective configured agent provider
+    pub fn agent_provider(&self) -> AgentProvider {
+        self.agent.provider
+    }
+
+    /// The effective configured agent executable path
+    pub fn agent_path(&self) -> String {
+        self.agent
+            .path
+            .clone()
+            .or_else(|| self.claude_path.clone())
+            .unwrap_or_else(|| match self.agent.provider {
+                AgentProvider::Claude => default_claude_path(),
+                AgentProvider::Codex => default_codex_path(),
+            })
+    }
+
+    /// The effective configured agent CLI arguments
+    pub fn agent_args(&self) -> Vec<String> {
+        if let Some(args) = self.agent.args.clone() {
+            return args;
+        }
+        if let Some(args) = self.claude_args.clone() {
+            return args;
+        }
+        match self.agent.provider {
+            AgentProvider::Claude => default_claude_args(),
+            AgentProvider::Codex => default_codex_args(),
+        }
+    }
+
+    fn apply_legacy_defaults(&mut self) {
+        if self.agent.path.is_none() {
+            self.agent.path = self.claude_path.clone();
+        }
+        if self.agent.args.is_none() {
+            self.agent.args = self.claude_args.clone();
+        }
+    }
+}
+
+fn default_codex_args() -> Vec<String> {
+    vec![
+        "exec".to_string(),
+        "--json".to_string(),
+        "--dangerously-bypass-approvals-and-sandbox".to_string(),
+        "-".to_string(),
+    ]
 }

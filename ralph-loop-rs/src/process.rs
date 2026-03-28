@@ -4,17 +4,17 @@ use tokio::process::{Child, ChildStderr, ChildStdout, Command};
 
 use crate::error::{RalphError, Result};
 
-/// Wrapper around a Claude subprocess
-pub struct ClaudeProcess {
+/// Wrapper around a coding agent subprocess
+pub struct AgentProcess {
     child: Child,
     pub stdout: Option<BufReader<ChildStdout>>,
     pub stderr: Option<BufReader<ChildStderr>>,
 }
 
-impl ClaudeProcess {
-    /// Spawn a new Claude process
-    pub async fn spawn(claude_path: &str, args: &[String], prompt: &str) -> Result<Self> {
-        let mut cmd = Command::new(claude_path);
+impl AgentProcess {
+    /// Spawn a new agent process
+    pub async fn spawn(path: &str, args: &[String], prompt: &str) -> Result<Self> {
+        let mut cmd = Command::new(path);
         cmd.args(args)
             .arg("-p")
             .arg(prompt)
@@ -34,13 +34,9 @@ impl ClaudeProcess {
         })
     }
 
-    /// Spawn a new Claude process with prompt via stdin (for --print mode)
-    pub async fn spawn_with_stdin(
-        claude_path: &str,
-        args: &[String],
-        prompt: &str,
-    ) -> Result<Self> {
-        let mut cmd = Command::new(claude_path);
+    /// Spawn a new agent process with prompt via stdin
+    pub async fn spawn_with_stdin(path: &str, args: &[String], prompt: &str) -> Result<Self> {
+        let mut cmd = Command::new(path);
         cmd.args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
