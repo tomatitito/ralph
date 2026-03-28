@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 use colored::Colorize;
 use tokio::sync::broadcast;
 use tracing::{error, info, warn};
@@ -11,12 +11,34 @@ use ralph_loop::agent::CliAgent;
 use ralph_loop::config::{AgentProvider, CliOverrides, Config};
 use ralph_loop::error::RalphError;
 use ralph_loop::loop_controller::{LoopController, LoopResult};
+use ralph_loop::self_update::upgrade_current_binary;
+use ralph_loop::VERSION;
 
 /// Ralph Loop: Run a coding agent in a loop until a promise is fulfilled
 #[derive(Parser, Debug)]
 #[command(name = "ralph-loop")]
-#[command(version, about, long_about = None)]
+#[command(version = VERSION, about, long_about = None)]
 struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
+    #[command(flatten)]
+    run_args: RunArgs,
+
+    /// Enable verbose logging (debug level). Use RUST_LOG=ralph_loop=trace for trace level
+    #[arg(short = 'v', long = "verbose")]
+    verbose: bool,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Upgrade ralph-loop to the latest GitHub release
+    #[command(alias = "update")]
+    Upgrade,
+}
+
+#[derive(Args, Debug, Default)]
+struct RunArgs {
     /// Prompt file path
     #[arg(short = 'f', long = "prompt-file")]
     prompt_file: Option<PathBuf>,
@@ -56,10 +78,6 @@ struct Cli {
     /// Extra CLI args passed to the coding agent
     #[arg(long = "agent-arg")]
     agent_args: Vec<String>,
-
-    /// Enable verbose logging (debug level). Use RUST_LOG=ralph_loop=trace for trace level
-    #[arg(short = 'v', long = "verbose")]
-    verbose: bool,
 }
 
 fn setup_logging(verbose: bool) {
@@ -79,7 +97,7 @@ fn setup_logging(verbose: bool) {
         .init();
 }
 
-fn load_config(cli: &Cli) -> Result<Config, RalphError> {
+fn load_config(cli: &RunArgs) -> Result<Config, RalphError> {
     // Start with default config or load from file
     let mut config = if let Some(ref config_path) = cli.config {
         Config::from_file(config_path)?
@@ -167,6 +185,19 @@ async fn main() {
 
     setup_logging(cli.verbose);
 
+    if let Some(Commands::Upgrade) = cli.command {
+        match upgrade_current_binary() {
+            Ok(message) => {
+                println!("{message}");
+                std::process::exit(0);
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     // Setup shutdown signal handling
     let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
 
@@ -181,7 +212,7 @@ async fn main() {
     });
 
     // Load configuration
-    let config = match load_config(&cli) {
+    let config = match load_config(&cli.run_args) {
         Ok(c) => c,
         Err(e) => {
             error!("{}", e);

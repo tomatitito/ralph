@@ -5,6 +5,8 @@
 //! agent as a subprocess and monitoring its output for completion promises and
 //! context limits.
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub mod agent;
 pub mod config;
 pub mod error;
@@ -12,6 +14,7 @@ pub mod json_events;
 pub mod loop_controller;
 pub mod monitor;
 pub mod process;
+pub mod self_update;
 pub mod state;
 pub mod token_counter;
 pub mod transcript;

@@ -38,6 +38,9 @@ ralph-loop -p "Work on feature" -c "DONE"
 
 # Override the agent executable or arguments
 ralph-loop --agent-path /usr/local/bin/codex --agent-arg=exec --agent-arg=--json -p "Your prompt here"
+
+# Upgrade to the latest released version
+ralph-loop upgrade
 ```
 
 ## Options
@@ -54,6 +57,7 @@ ralph-loop --agent-path /usr/local/bin/codex --agent-arg=exec --agent-arg=--json
 | `--agent-provider <PROVIDER>` | Coding agent backend: `claude` or `codex` |
 | `--agent-path <PATH>` | Path to the coding agent executable |
 | `--agent-arg <ARG>` | Extra CLI arg to pass to the coding agent (repeatable) |
+| `upgrade` | Replace the current `ralph-loop` binary with the latest GitHub release |
 
 ## Configuration
 
