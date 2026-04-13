@@ -1,0 +1,16 @@
+[[repos]]
+repo = "local"
+hooks = [
+  { id = "depcruise",
+    name = "dependency-cruiser",
+    language = "system",
+    entry = "bun run depcruise",
+    files = "\\.(ts|tsx|js|jsx|json|toml)$",
+    pass_filenames = false },
+  { id = "tests",
+    name = "bun test",
+    language = "system",
+    entry = "bun test",
+    files = "\\.(ts|tsx|js|jsx|json|toml)$",
+    pass_filenames = false },
+]

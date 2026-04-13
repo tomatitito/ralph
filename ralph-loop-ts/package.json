@@ -1,0 +1,21 @@
+{
+  "name": "ralph-loop-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bun + TypeScript scaffold for ralph-loop-ts",
+  "bin": {
+    "ralph-ts": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "test": "bun test",
+    "lint": "bun run depcruise",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs src"
+  },
+  "devDependencies": {
+    "bun-types": "^1.2.18",
+    "dependency-cruiser": "^16.10.4",
+    "typescript": "^5.8.3"
+  }
+}

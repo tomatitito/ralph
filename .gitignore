@@ -2,3 +2,5 @@
 .ralph-loop-output/
 
 */target
+*/node_modules
+*.tsbuildinfo
