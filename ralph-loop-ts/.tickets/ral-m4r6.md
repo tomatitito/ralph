@@ -103,3 +103,58 @@ Implement the CLI surface and load/validate loop, checks, and completion TOML co
 
 This ticket is done when the CLI/config layer can produce a validated normalized run config for downstream code, reject invalid combinations with clear errors, and do so under table-driven red/green tests without pulling in runtime concerns.
 
+## Implementation Plan
+
+1. Define raw and normalized config types
+   - flesh out `src/config/loop-config.ts`
+   - flesh out `src/config/checks-config.ts`
+   - flesh out `src/config/completion-config.ts`
+   - keep `ResolvedRunConfig` in sync with `internal-contracts.md`
+2. Add CLI argument parsing in `src/cli.ts`
+   - support `--prompt-file/-f`
+   - support `--prompt/-p`
+   - support `--max-iterations/-m`
+   - support `--completion-promise/-c`
+   - support `--output-dir/-o`
+   - support `--context-limit`
+   - support `--config`
+   - support `--checks-config`
+   - support `--completion-config`
+   - support `--provider`
+   - support `--model`
+   - support `--thinking`
+3. Implement TOML loading and parsing
+   - parse loop config from `ralph.toml` or `--config`
+   - parse checks config referenced by loop config or `--checks-config`
+   - parse completion config referenced by loop config or `--completion-config`
+4. Implement merge and normalization in `src/config/resolve-config.ts`
+   - precedence is CLI > loop config > defaults
+   - normalize prompt source into exactly one active `PromptSource`
+   - resolve checks/completion paths relative to the loop config file directory
+5. Add validation with clear user-facing errors
+   - reject multiple prompt sources
+   - reject missing prompt source
+   - reject invalid `max_iterations`
+   - reject invalid `context_limit`
+   - reject unsupported `thinking`
+   - reject missing checks/completion config paths
+   - reject invalid checks/completion config structures
+6. Keep side effects at the CLI boundary
+   - avoid direct `process.argv` / `process.env` access in config modules
+   - route filesystem access through the CLI boundary or narrow helpers
+7. Drive the work with red/green tests first
+   - add `src/config/resolve-config.test.ts`
+   - add `src/config/checks-config.test.ts`
+   - add `src/config/completion-config.test.ts`
+   - cover valid inline prompt config
+   - cover valid prompt-file config
+   - cover invalid multiple prompt sources
+   - cover invalid missing prompt source
+   - cover CLI override precedence
+   - cover relative path resolution from nested config files
+   - cover missing referenced config files
+   - cover invalid checks/completion config shapes
+8. Finish by wiring controller-facing consumption
+   - ensure downstream code can consume one validated `ResolvedRunConfig`
+   - keep runtime concerns out of the CLI/config layer
+
