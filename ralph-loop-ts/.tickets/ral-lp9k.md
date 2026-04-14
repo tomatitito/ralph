@@ -26,6 +26,8 @@ Implement the first TypeScript version of Ralph Loop using the Pi SDK and intern
 
 - This epic is complete only when the scaffold, runtime, extensions, controller, checks/completion runners, artifact writer, documentation, and tests work together as one coherent TS implementation.
 - The spec wiki remains the semantic source of truth; ticket-level implementation notes exist to reduce ambiguity during execution.
+- `rlt-w903` established a mock vertical slice and the core function-shaped seams across CLI/config, runtime, controller, checks, and completion.
+- Remaining tickets should generally refine or replace those slice implementations rather than re-introduce the same seams from scratch.
 - Prefer introducing stable internal contracts early so later tickets compose cleanly:
   - resolved config contract
   - runtime/iteration result contract
@@ -54,4 +56,3 @@ Before closing the epic, verify:
 - checks and completion validators affect decisions in the correct order
 - artifacts are complete enough to diagnose a failed run
 - automated tests cover the key lifecycle paths
-

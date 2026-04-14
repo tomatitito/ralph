@@ -1,7 +1,7 @@
 ---
 id: ral-gu4t
 status: open
-deps: [ral-m4r6, ral-xtlt, ral-a62g, ral-2q2g]
+deps: [ral-m4r6, ral-a62g, ral-2q2g]
 links: [lifecycle.md, overview.md, artifacts.md, internal-contracts.md]
 created: 2026-04-13T20:32:10Z
 type: task
@@ -10,9 +10,9 @@ assignee: Jens Kouros
 parent: ral-lp9k
 tags: [ralph-loop-ts, loop, lifecycle]
 ---
-# Implement iteration orchestration and decision logic
+# Complete iteration orchestration and decision logic
 
-Implement the post-iteration evaluation order, restart semantics, precedence rules, and success/failure decisions from the spec.
+Extend the controller introduced by the mock vertical slice so it fully implements the post-iteration evaluation order, restart semantics, precedence rules, and success/failure decisions from the spec.
 
 ## Acceptance Criteria
 
@@ -20,10 +20,11 @@ Implement the post-iteration evaluation order, restart semantics, precedence rul
 - completion validators run only on loop-complete claims after checks pass
 - before_final_success checks run only after validators pass
 - restart and termination decisions follow the lifecycle spec
+- controller behavior is covered by deterministic tests for the main precedence cases from `lifecycle.md`
 
 ## Implementation Notes
 
-- This ticket should introduce the main controller/state-machine layer for TS Ralph.
+- `rlt-w903` already introduced a minimal function-shaped controller and happy-path loop wiring; this ticket makes that controller semantics-complete rather than introducing it from scratch.
 - Encode the canonical post-iteration order explicitly in code:
   1. read extension state
   2. run `after_iteration` checks
@@ -31,7 +32,7 @@ Implement the post-iteration evaluation order, restart semantics, precedence rul
   4. run `before_final_success` checks only after completion validation passed
   5. write iteration artifacts
   6. decide next state
-- Introduce explicit decision/result types, for example:
+- Introduce or refine explicit decision/result types, for example:
   - `IterationDecision = success | restart_task_boundary | restart_failed_completion | restart_context_limit | restart_incomplete | interrupted | max_iterations_exceeded`
   - `RunExitReason = loop_completed | max_iterations_exceeded | interrupted | error`
 - Keep decision logic pure where practical so it can be tested without live Pi sessions.
@@ -43,6 +44,7 @@ Implement the post-iteration evaluation order, restart semantics, precedence rul
   - checks runner
   - completion runner
   - artifact writer
+- Most of this ticket should be doable against fake runtimes and fake runners; it should not need to wait for the real Pi-backed runtime from `ral-xtlt`.
 
 ## Architecture Constraints
 
@@ -71,6 +73,7 @@ Implement the post-iteration evaluation order, restart semantics, precedence rul
 
 - This ticket is the integration point for runtime and extension outputs.
 - It should define the contracts later consumed by artifacts and tests.
+- It depends on lifecycle/context extension state contracts, but most controller behavior should be testable before the real Pi runtime lands.
 
 ## Out of Scope
 
@@ -87,15 +90,12 @@ Implement the post-iteration evaluation order, restart semantics, precedence rul
   - loop marker + context-limit hit
   - no marker + checks pass
   - successful loop completion
+  - interruption and max-iteration handling
 
 ## Suggested Implementation Checklist
 
-1. Define the controller-facing contracts from `internal-contracts.md`, especially:
-   - iteration evaluation input
-   - iteration decision
-   - run exit reason
-   - iteration summary contract
-2. Start with pure decision tests before wiring any real runtime behavior.
+1. Start from the controller-facing contracts and seams introduced by `rlt-w903`.
+2. Isolate a pure decision function before wiring more side effects.
 3. Add failing table-driven tests for the canonical lifecycle cases from `lifecycle.md`.
 4. Implement the smallest pure decision function that passes those tests.
 5. Add controller orchestration tests that verify the exact post-iteration order:
@@ -105,7 +105,7 @@ Implement the post-iteration evaluation order, restart semantics, precedence rul
    - run `before_final_success` checks when eligible
    - write artifacts
    - decide next state
-6. Introduce the loop controller that coordinates dependencies through interfaces rather than concrete implementations.
+6. Refine the loop controller so it coordinates dependencies through function-shaped seams rather than concrete implementations.
 7. Ensure the controller is the only production layer wiring together:
    - runtime
    - checks runner
@@ -113,10 +113,9 @@ Implement the post-iteration evaluation order, restart semantics, precedence rul
    - artifact writer
    - platform/logging dependencies
 8. Keep decision logic separate from side-effectful orchestration so most lifecycle behavior remains unit-testable.
-9. Add red/green tests for interruption and max-iteration handling.
+9. Add red/green tests for interruption, failed completion attempts, context-limit restarts, and max-iteration handling.
 10. Re-run dependency-cruiser after wiring the controller to confirm boundary rules still hold.
 
 ## Definition of Done Heuristic
 
-This ticket is done when lifecycle decisions are driven by table-driven tests, orchestration follows the canonical evaluation order, and the controller cleanly integrates runtime/checks/completion/artifacts without leaking those dependencies back into lower layers.
-
+This ticket is done when lifecycle decisions are driven by table-driven tests, the existing controller follows the canonical evaluation order, and controller semantics are spec-complete without requiring live Pi sessions for the bulk of coverage.

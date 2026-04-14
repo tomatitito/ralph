@@ -10,25 +10,28 @@ assignee: Jens Kouros
 parent: ral-lp9k
 tags: [ralph-loop-ts, pi, sdk, runtime]
 ---
-# Embed Pi SDK runtime for fresh-session iterations
+# Replace the mock runtime with a Pi SDK runtime for fresh-session iterations
 
-Build the core runtime that creates fresh Pi sessions for each Ralph iteration and feeds handoff summaries forward.
+Replace the temporary mock runtime in `src/runtime/pi-runtime.ts` with a real Pi-backed implementation that creates fresh sessions for each Ralph iteration and feeds handoff summaries forward.
 
 ## Acceptance Criteria
 
 - Pi is embedded through the SDK, not via pi CLI subprocess orchestration
+- the existing `IterationRuntime` seam remains the controller-facing contract
+- the temporary mock behavior in `src/runtime/pi-runtime.ts` is replaced or cleanly split behind the same function-shaped runtime contract
 - one fresh session is created per iteration
 - the original objective plus handoff summary are injected each time
 - the runtime treats `agent_end` as the canonical end-of-iteration event
 - runtime exit reasons are normalized to the controller-facing contract
 - session metadata is returned on a best-effort basis and missing metadata becomes diagnostics rather than hard failure
-- iteration count and max-iteration failure behavior follow the spec
+- controller tests can continue to use fake/mock runtimes without requiring live Pi
 
 ## Implementation Notes
 
+- `rlt-w903` already established a temporary mock vertical slice and the function-shaped runtime seam; this ticket upgrades that seam to a real Pi implementation rather than introducing it from scratch.
 - Define a thin runtime boundary so the controller does not depend directly on raw Pi SDK details.
 - Hide Pi SDK details behind a narrow adapter interface and keep Pi-specific types from leaking into controller logic.
-- Introduce explicit iteration-level types, for example:
+- Preserve the existing iteration-level contract shape, for example:
   - `IterationInput { iterationNumber, objective, handoffSummary, provider, model, thinking }`
   - `IterationRuntimeResult { sessionId, assistantText?, exitReason, diagnostics }`
 - The runtime should own:
@@ -92,17 +95,17 @@ Build the core runtime that creates fresh Pi sessions for each Ralph iteration a
 
 ## Verification Notes
 
-- Use a fake or adapter-backed runtime in tests so controller tests do not require live Pi integration.
-- Add at least one integration-style test proving fresh-session-per-iteration behavior.
+- Keep using a fake or adapter-backed runtime in controller tests so lifecycle work does not require live Pi integration.
+- Add at least one integration-style test proving fresh-session-per-iteration behavior for the real Pi-backed adapter.
 
 ## Suggested Implementation Checklist
 
-1. Define the runtime-facing interfaces from `internal-contracts.md`, especially:
+1. Start from the seam introduced by `rlt-w903`, especially:
    - `IterationInput`
    - `IterationRuntimeResult`
    - `IterationRuntime`
-2. Create a fake runtime implementation first for tests so downstream controller work can proceed without live Pi integration.
-3. Add a failing contract test for `IterationRuntime` behavior:
+2. Keep the mock/fake runtime path available for tests so downstream controller work can proceed without live Pi integration.
+3. Add a failing contract test for real-runtime behavior:
    - one invocation corresponds to one fresh iteration/session result
    - handoff summary is accepted as input
    - normalized exit reasons are returned
@@ -116,9 +119,8 @@ Build the core runtime that creates fresh Pi sessions for each Ralph iteration a
    - normalized exit reason
 8. Ensure the runtime does not import controller code and does not reach for process/logging globals directly.
 9. Add or tighten dependency-cruiser coverage if new runtime submodules or platform adapters are introduced.
-10. Add at least one integration-style test against the real adapter boundary if feasible; otherwise keep the adapter small and heavily contract-tested.
+10. Add at least one integration-style test against the real adapter boundary while keeping the adapter small and heavily contract-tested.
 
 ## Definition of Done Heuristic
 
-This ticket is done when the runtime can run a single fresh iteration through a controller-friendly interface, hide Pi details from callers, satisfy the dependency boundaries, and be driven primarily through red/green contract tests.
-
+This ticket is done when the temporary mock runtime has been replaced by a real Pi-backed runtime behind the same controller-friendly interface, Pi details remain hidden from callers, dependency boundaries still hold, and the runtime is covered by contract tests plus at least one focused integration-style test.

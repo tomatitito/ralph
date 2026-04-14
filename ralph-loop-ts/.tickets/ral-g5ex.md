@@ -10,9 +10,9 @@ assignee: Jens Kouros
 parent: ral-lp9k
 tags: [ralph-loop-ts, checks, commands]
 ---
-# Implement checks runner from ralph-checks.toml
+# Replace the mock checks runner with real command execution from ralph-checks.toml
 
-Run configured check commands at the supported lifecycle hooks and capture structured results and logs.
+Upgrade the function-shaped checks runner introduced by the mock vertical slice so it executes configured commands at the supported lifecycle hooks and captures structured results and logs.
 
 ## Acceptance Criteria
 
@@ -20,9 +20,11 @@ Run configured check commands at the supported lifecycle hooks and capture struc
 - command cwd/env/timeout are honored
 - stdout/stderr matching and exit-code rules are enforced
 - per-command and aggregate results are returned in a persistable structured form
+- checks execute in file order without short-circuiting after failures
 
 ## Implementation Notes
 
+- `rlt-w903` already introduced the function-shaped checks seam and a trivial pass-through implementation; this ticket replaces that stub with real command execution semantics.
 - Implement a command-runner layer shared across check hooks so behavior is identical for `after_iteration` and `before_final_success`.
 - Normalize each command result into a structured shape such as:
   - `name`
@@ -60,7 +62,8 @@ Run configured check commands at the supported lifecycle hooks and capture struc
 ## Dependencies on Other Tickets
 
 - Consumes normalized config from `ral-m4r6`.
-- Its result contract should be usable by `ral-gu4t` and `ral-l3ri`.
+- Builds on the seam established by `rlt-w903`.
+- Its result contract should remain usable by `ral-gu4t` and `ral-l3ri`.
 
 ## Out of Scope
 
@@ -73,9 +76,9 @@ Run configured check commands at the supported lifecycle hooks and capture struc
 
 ## Suggested Implementation Checklist
 
-1. Define the normalized command/check result contracts from `internal-contracts.md`.
-2. Introduce a command-execution abstraction so the checks runner does not depend directly on process-spawning details.
-3. Start with red/green unit tests for command-result evaluation rules:
+1. Start from the normalized command/check result contracts already introduced in the vertical slice.
+2. Introduce a real command-execution abstraction so the checks runner does not depend directly on process-spawning details.
+3. Add red/green unit tests for command-result evaluation rules:
    - required exit code
    - required stdout substring
    - required stderr substring
@@ -93,5 +96,4 @@ Run configured check commands at the supported lifecycle hooks and capture struc
 
 ## Definition of Done Heuristic
 
-This ticket is done when checks can be executed through a normalized runner contract, all configured checks for a hook execute deterministically in order, aggregate results are computed correctly, and the implementation is covered by red/green tests without taking a dependency on runtime internals.
-
+This ticket is done when the current stub checks runner has been replaced by deterministic command execution, all configured checks for a hook execute in order, aggregate results are computed correctly, and the implementation is covered by focused red/green tests without taking a dependency on runtime internals.

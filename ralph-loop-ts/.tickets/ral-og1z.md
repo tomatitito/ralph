@@ -10,9 +10,9 @@ assignee: Jens Kouros
 parent: ral-lp9k
 tags: [ralph-loop-ts, completion, commands]
 ---
-# Implement completion validation runner from ralph-completion.toml
+# Replace the mock completion runner with real validation from ralph-completion.toml
 
-Run completion validators when the loop-complete marker is claimed and aggregate their outcomes.
+Upgrade the function-shaped completion runner introduced by the mock vertical slice so it executes completion validators when the loop-complete marker is claimed and aggregates their outcomes.
 
 ## Acceptance Criteria
 
@@ -20,9 +20,11 @@ Run completion validators when the loop-complete marker is claimed and aggregate
 - validator success rules match the config spec
 - aggregate completionValidated state is computed
 - validator results are returned in a persistable structured form even when skipped or failed
+- validators run in file order without short-circuiting after failures
 
 ## Implementation Notes
 
+- `rlt-w903` already introduced the function-shaped completion seam and a trivial happy-path implementation; this ticket replaces that stub with real validation semantics.
 - Reuse the same command-execution semantics as the checks runner where practical.
 - This ticket should focus on the completion-specific hook and aggregate result semantics:
   - validators run only on a loop-complete claim
@@ -54,6 +56,7 @@ Run completion validators when the loop-complete marker is claimed and aggregate
 ## Dependencies on Other Tickets
 
 - Consumes normalized completion config from `ral-m4r6`.
+- Builds on the seam established by `rlt-w903`.
 - Its output feeds controller decisions in `ral-gu4t` and persistence in `ral-l3ri`.
 
 ## Out of Scope
@@ -68,9 +71,9 @@ Run completion validators when the loop-complete marker is claimed and aggregate
 
 ## Suggested Implementation Checklist
 
-1. Define the completion-validation result contract from `internal-contracts.md`, including the explicit `skipped` state.
+1. Start from the completion-validation result contract already introduced in the vertical slice, including the explicit `skipped` state.
 2. Reuse the shared command-execution abstraction from the checks runner where practical.
-3. Start with red/green tests for completion-specific semantics:
+3. Add red/green tests for completion-specific semantics:
    - skipped when no loop-complete claim is present
    - pass when all validators pass
    - fail when any validator fails
@@ -82,5 +85,4 @@ Run completion validators when the loop-complete marker is claimed and aggregate
 
 ## Definition of Done Heuristic
 
-This ticket is done when completion validation behaves deterministically for skipped/passed/failed cases, reuses shared command execution where sensible, and exposes a normalized contract that the controller can consume without knowing command-level details.
-
+This ticket is done when the current stub completion runner has been replaced by deterministic validator execution, skipped/passed/failed cases behave correctly, shared command execution is reused where sensible, and the controller can consume the normalized result without knowing command-level details.
