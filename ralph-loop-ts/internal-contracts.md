@@ -237,7 +237,7 @@ Notes:
 ### Check hook
 
 ```ts
-export type CheckHook = "after_iteration" | "before_final_success";
+export type CheckHook = "after_iteration";
 ```
 
 ### Command result
@@ -278,7 +278,7 @@ export interface CheckHookResult {
 ### Checks runner
 
 ```ts
-export type ChecksRunner = (hook: CheckHook) => Promise<CheckHookResult>;
+export type ChecksRunner = () => Promise<CheckHookResult>;
 ```
 
 ## Completion contracts
@@ -301,9 +301,7 @@ export interface CompletionValidationResult {
 ### Completion runner
 
 ```ts
-export type CompletionRunner = (
-  claimed: boolean,
-) => Promise<CompletionValidationResult>;
+export type CompletionRunner = () => Promise<CompletionValidationResult>;
 ```
 
 Notes:
@@ -320,7 +318,6 @@ export interface IterationEvaluationInput {
   runtime: IterationRuntimeResult;
   afterIterationChecks: CheckHookResult;
   completion: CompletionValidationResult;
-  beforeFinalSuccessChecks: CheckHookResult | null;
 }
 ```
 
@@ -440,5 +437,5 @@ These contracts are designed so tests can:
 
 For the first vertical slice, prefer hardcoded function implementations over scaffolding classes. For example:
 - a mock `IterationRuntime` function that emits three deterministic iterations
-- a trivial `ChecksRunner` function that returns success
-- a trivial `CompletionRunner` function that returns success on loop-complete claims
+- a trivial `ChecksRunner` function that returns `after_iteration` success
+- a trivial `CompletionRunner` function that returns success when invoked

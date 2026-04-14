@@ -60,7 +60,6 @@ export interface CommandConfig {
 
 export interface ChecksConfig {
   afterIteration: CommandConfig[];
-  beforeFinalSuccess: CommandConfig[];
 }
 
 export interface CompletionConfig {

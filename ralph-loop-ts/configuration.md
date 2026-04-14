@@ -117,9 +117,8 @@ The loop config is invalid if:
 ### Purpose
 The checks config defines commands run at lifecycle hook points.
 
-Version 1 supports these hooks:
+Version 1 supports this hook:
 - `after_iteration`
-- `before_final_success`
 
 ### Suggested file name
 - `ralph-checks.toml`
@@ -135,11 +134,6 @@ command = "bun test"
 name = "lint"
 command = "bun run lint"
 timeout_seconds = 120
-
-[[before_final_success]]
-name = "build"
-command = "bun run build"
-required_exit_code = 0
 ```
 
 ### Field definitions for each check
@@ -247,10 +241,6 @@ command = "bun test"
 [[after_iteration]]
 name = "lint"
 command = "bun run lint"
-
-[[before_final_success]]
-name = "production build"
-command = "bun run build"
 ```
 
 ```toml

@@ -23,10 +23,9 @@
 
 ## Phase 4: checks and completion
 - parse checks config
-- run `after_iteration` checks
+- have the controller invoke `after_iteration` checks after each iteration runtime return
 - parse completion config
-- run completion validators on loop-complete claims
-- run `before_final_success` checks
+- have the controller invoke completion validators on loop-complete claims
 
 ## Phase 5: artifacts and summaries
 - create `~/.ralph-loop/` run directory structure

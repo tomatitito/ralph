@@ -63,10 +63,6 @@ function createFixtureRoot(): string {
       "[[after_iteration]]",
       'name = "test"',
       'command = "bun test"',
-      "",
-      "[[before_final_success]]",
-      'name = "build"',
-      'command = "bun run build"',
     ].join("\n"),
   );
   writeFileSync(

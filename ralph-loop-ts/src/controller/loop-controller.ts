@@ -1,25 +1,39 @@
-import { createChecksRunner } from "../checks/check-runner.ts";
-import { createCompletionRunner } from "../completion/completion-runner.ts";
+import type { ResolvedConfigBundle, ResolvedRunConfig } from "../config/config-types.ts";
+import { createChecksRunner, type ChecksRunner } from "../guards/check.ts";
+import {
+  createCompletionRunner,
+  type CompletionRunner,
+  type CompletionValidationResult,
+} from "../guards/completion.ts";
 import { buildHandoffSummary } from "./handoff-summary.ts";
 import { runPiIteration } from "../runtime/pi-runtime.ts";
-import type {
-  LoopControllerResult,
-  RunConfiguredLoopInput,
-  RunLoopControllerInput,
-} from "./controller-types.ts";
+import type { IterationRuntime } from "../runtime/runtime-types.ts";
+
+export type RunExitReason = "loop_completed" | "max_iterations_exceeded" | "interrupted" | "error";
+
+export interface RunLoopControllerInput {
+  runConfig: ResolvedRunConfig;
+  runtime: IterationRuntime;
+  runChecks: ChecksRunner;
+  runCompletion: CompletionRunner;
+}
+
+export interface LoopControllerResult {
+  exitReason: RunExitReason;
+  iterationCount: number;
+  outputLines: string[];
+}
+
+export interface RunConfiguredLoopInput {
+  config: ResolvedConfigBundle;
+}
 
 function isSuccessfulLoopCompletion(input: {
   loopCompleteClaimed: boolean;
   afterIterationPassed: boolean;
   completionPassed: boolean;
-  beforeFinalSuccessPassed: boolean;
 }): boolean {
-  return (
-    input.loopCompleteClaimed &&
-    input.afterIterationPassed &&
-    input.completionPassed &&
-    input.beforeFinalSuccessPassed
-  );
+  return input.loopCompleteClaimed && input.afterIterationPassed && input.completionPassed;
 }
 
 export async function runLoopController(input: RunLoopControllerInput): Promise<LoopControllerResult> {
@@ -50,21 +64,17 @@ export async function runLoopController(input: RunLoopControllerInput): Promise<
       outputLines.push(runtimeResult.assistantText);
     }
 
-    const afterIterationChecks = await input.runChecks("after_iteration");
+    const afterIterationChecks = await input.runChecks();
     const loopCompleteClaimed = runtimeResult.extensionState.lifecycle.loopComplete;
-    const completion = loopCompleteClaimed && afterIterationChecks.passed
-      ? await input.runCompletion(true)
-      : { status: "skipped", results: [] as [] };
-    const beforeFinalSuccessChecks = loopCompleteClaimed && completion.status === "passed"
-      ? await input.runChecks("before_final_success")
-      : null;
+    const completion: CompletionValidationResult = loopCompleteClaimed && afterIterationChecks.passed
+      ? await input.runCompletion()
+      : { status: "skipped", results: [] };
 
     if (
       isSuccessfulLoopCompletion({
         loopCompleteClaimed,
         afterIterationPassed: afterIterationChecks.passed,
         completionPassed: completion.status === "passed",
-        beforeFinalSuccessPassed: beforeFinalSuccessChecks?.passed ?? false,
       })
     ) {
       return {

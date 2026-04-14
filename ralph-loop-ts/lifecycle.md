@@ -4,6 +4,8 @@
 
 An iteration is one fresh Pi session execution from prompt submission to `agent_end`, followed by Ralph-specific evaluation.
 
+Operationally, the iteration boundary is the return of the iteration runtime function: once the controller's `await input.runtime(...)` resolves, the iteration is over and post-iteration evaluation begins.
+
 The runtime model for v1 is:
 - create a fresh Pi session
 - inject the original objective plus carried-forward summary
@@ -33,12 +35,11 @@ Each iteration has these phases:
    - collect session reference, token/context usage, markers, and diagnostics
 
 4. **Check**
-   - run `after_iteration` checks
+   - the controller explicitly invokes the `after_iteration` checks runner
    - record all outputs and statuses
 
 5. **Validate**
-   - if loop completion was claimed and `after_iteration` checks passed, run completion validators
-   - if completion validators pass, run `before_final_success` checks
+   - if loop completion was claimed and `after_iteration` checks passed, the controller explicitly invokes completion validators
 
 6. **Summarize**
    - write iteration metadata
@@ -64,8 +65,6 @@ Version 1 uses these conceptual signals:
    - all `after_iteration` checks passed
 5. `completion_validated`
    - all completion validators passed
-6. `final_checks_passed`
-   - all `before_final_success` checks passed
 
 ## Agent markers
 
@@ -88,16 +87,14 @@ Canonical marker strings:
 
 ## Post-iteration evaluation order
 
-After `agent_end`, the controller must evaluate in this order:
+After `agent_end` and after the iteration runtime returns, the controller must evaluate in this order:
 
 1. read extension state
 2. run `after_iteration` checks
 3. if loop completion was claimed and `after_iteration` checks passed:
    - run completion validators
-4. if completion validators passed:
-   - run `before_final_success` checks
-5. write iteration artifacts
-6. decide next state
+4. write iteration artifacts
+5. decide next state
 
 This order is canonical for v1.
 
@@ -108,7 +105,6 @@ Terminate successfully only if all of the following are true:
 - loop-complete marker present
 - `after_iteration` checks passed
 - completion validators passed
-- `before_final_success` checks passed
 
 ### Restart after task completion
 Start a fresh next iteration if all of the following are true:
@@ -124,7 +120,6 @@ Start a fresh next iteration if:
 - but any of these fail:
   - `after_iteration` checks
   - completion validators
-  - `before_final_success` checks
 
 ### Restart after context limit
 Start a fresh next iteration if:
@@ -178,22 +173,17 @@ When multiple conditions occur in one iteration, resolve them in this order:
 ## Checks and validation timing
 
 ### `after_iteration`
-These checks run after every iteration, including when the iteration ended because of:
+These checks are explicitly invoked by the controller after every iteration, including when the iteration ended because of:
 - task completion
 - loop completion claim
 - context-limit stop
 - ordinary incomplete stop
 
 ### Completion validators
-These run only when:
+These are explicitly invoked by the controller only when:
 - the loop-complete marker is present
 - and `after_iteration` checks passed
 
-### `before_final_success`
-These run only when:
-- the loop-complete marker is present
-- `after_iteration` checks passed
-- completion validators passed
 
 ## Max iterations
 

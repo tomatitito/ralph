@@ -32,7 +32,6 @@ Canonical v1 layout:
             001-after-iteration-01.log
             001-after-iteration-02.log
             001-completion-01.log
-            001-final-check-01.log
           exports/
       latest -> runs/<run-id>
 ```
@@ -100,7 +99,6 @@ Each iteration writes `iterations/NNN-metadata.json`.
   "peakContextTokens": 51000,
   "afterIterationChecksPassed": true,
   "completionValidated": null,
-  "beforeFinalSuccessChecksPassed": null,
   "piSessionFile": "/path/to/pi/session.jsonl",
   "piSessionId": "optional-session-id",
   "summaryPath": "./001-summary.md",
@@ -137,7 +135,7 @@ It should contain:
 Each iteration writes `iterations/NNN-completion.json`.
 
 Rules:
-- if no completion validation was attempted, write a file indicating `skipped`
+- if the controller did not invoke completion validation for that iteration, write a file indicating `skipped`
 - if validation ran, include aggregate pass/fail plus per-validator details
 
 ## Diagnostics file

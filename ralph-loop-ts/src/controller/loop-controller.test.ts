@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import type { CheckHook } from "../checks/check-types.ts";
 import { runLoopController } from "./loop-controller.ts";
 
 describe("runLoopController", () => {
   test("runs checks on every iteration and completion only on the final loop-complete claim", async () => {
-    const checkHooks: CheckHook[] = [];
-    const completionClaims: boolean[] = [];
+    let checkRuns = 0;
+    let completionRuns = 0;
 
     const result = await runLoopController({
       runConfig: {
@@ -44,31 +43,26 @@ describe("runLoopController", () => {
           },
         },
       }),
-      runChecks: async (hook) => {
-        checkHooks.push(hook);
+      runChecks: async () => {
+        checkRuns += 1;
         return {
-          hook,
+          hook: "after_iteration",
           executed: true,
           passed: true,
           results: [],
         };
       },
-      runCompletion: async (claimed) => {
-        completionClaims.push(claimed);
+      runCompletion: async () => {
+        completionRuns += 1;
         return {
-          status: claimed ? "passed" : "skipped",
+          status: "passed",
           results: [],
         };
       },
     });
 
     expect(result.exitReason).toBe("loop_completed");
-    expect(checkHooks).toEqual([
-      "after_iteration",
-      "after_iteration",
-      "after_iteration",
-      "before_final_success",
-    ]);
-    expect(completionClaims).toEqual([true]);
+    expect(checkRuns).toBe(3);
+    expect(completionRuns).toBe(1);
   });
 });

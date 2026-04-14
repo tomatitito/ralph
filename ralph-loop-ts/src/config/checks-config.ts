@@ -91,6 +91,5 @@ export function parseChecksConfigToml(tomlText: string): ChecksConfig {
 
   return {
     afterIteration: parseCommandArray(root.after_iteration, "after_iteration"),
-    beforeFinalSuccess: parseCommandArray(root.before_final_success, "before_final_success"),
   };
 }
