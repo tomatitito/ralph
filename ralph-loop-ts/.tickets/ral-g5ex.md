@@ -1,6 +1,6 @@
 ---
 id: ral-g5ex
-status: open
+status: closed
 deps: [ral-m4r6]
 links: [configuration.md, lifecycle.md, internal-contracts.md]
 created: 2026-04-13T20:32:10Z
@@ -97,3 +97,9 @@ Upgrade the function-shaped checks runner introduced by the mock vertical slice 
 ## Definition of Done Heuristic
 
 This ticket is done when the current stub checks runner has been replaced by deterministic command execution, all configured checks for a hook execute in order, aggregate results are computed correctly, and the implementation is covered by focused red/green tests without taking a dependency on runtime internals.
+
+## Notes
+
+**2026-04-14T22:33:44Z**
+
+Implemented real command-backed checks runner under src/guards, removed before_final_success hook, updated controller/docs/tests, committed in 6902f2a and pushed to origin/main.

@@ -1,6 +1,6 @@
 ---
 id: ral-og1z
-status: open
+status: closed
 deps: [ral-m4r6]
 links: [configuration.md, lifecycle.md, internal-contracts.md]
 created: 2026-04-13T20:32:10Z
@@ -86,3 +86,9 @@ Upgrade the function-shaped completion runner introduced by the mock vertical sl
 ## Definition of Done Heuristic
 
 This ticket is done when the current stub completion runner has been replaced by deterministic validator execution, skipped/passed/failed cases behave correctly, shared command execution is reused where sensible, and the controller can consume the normalized result without knowing command-level details.
+
+## Notes
+
+**2026-04-14T22:33:45Z**
+
+Implemented real command-backed completion validation under src/guards, simplified controller invocation to thunk-based runner, updated docs/tests, committed in 6902f2a and pushed to origin/main.
