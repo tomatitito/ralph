@@ -3,6 +3,7 @@ import { resolve as resolvePath } from "node:path";
 
 import type { RawCliArgs } from "./config/config-types.ts";
 import { resolveConfig } from "./config/resolve-config.ts";
+import { runConfiguredLoop } from "./controller/loop-controller.ts";
 
 export interface RunCliOptions {
   cwd?: string;
@@ -98,7 +99,7 @@ export function parseCliArgs(args: readonly string[]): RawCliArgs {
   return parsed;
 }
 
-export function runCli(args: readonly string[] = [], options: RunCliOptions = {}): string {
+export async function runCli(args: readonly string[] = [], options: RunCliOptions = {}): Promise<string> {
   const cliArgs = parseCliArgs(args);
   const resolved = resolveConfig({
     cliArgs,
@@ -108,6 +109,11 @@ export function runCli(args: readonly string[] = [], options: RunCliOptions = {}
       readText: (path) => readFileSync(path, "utf8"),
     },
   });
+
+  if (resolved.runConfig.provider === "mock") {
+    const result = await runConfiguredLoop({ config: resolved });
+    return result.outputLines.join("\n");
+  }
 
   return JSON.stringify(resolved, null, 2);
 }

@@ -50,7 +50,7 @@ describe("parseCliArgs", () => {
 });
 
 describe("runCli", () => {
-  test("resolves config and returns JSON", () => {
+  test("resolves config and returns JSON", async () => {
     const root = mkdtempSync(join(tmpdir(), "ralph-cli-"));
     mkdirSync(join(root, "nested"));
     writeFileSync(join(root, "task.txt"), "ship it\n");
@@ -71,7 +71,7 @@ describe("runCli", () => {
       '[[on_loop_complete_claim]]\nname = "done"\ncommand = "echo ok"\n',
     );
 
-    const output = runCli([], { cwd: root });
+    const output = await runCli([], { cwd: root });
     const parsed = JSON.parse(output) as {
       runConfig: { prompt: { kind: string; text: string }; checksConfigPath: string; completionConfigPath: string };
     };
@@ -80,5 +80,34 @@ describe("runCli", () => {
     expect(parsed.runConfig.prompt.text).toBe("ship it\n");
     expect(parsed.runConfig.checksConfigPath).toBe(join(root, "checks.toml"));
     expect(parsed.runConfig.completionConfigPath).toBe(join(root, "completion.toml"));
+  });
+
+  test("runs the deterministic mock loop end-to-end", async () => {
+    const root = mkdtempSync(join(tmpdir(), "ralph-cli-mock-"));
+    writeFileSync(join(root, "checks.toml"), '[[after_iteration]]\nname = "always-pass"\ncommand = "echo ok"\n');
+    writeFileSync(
+      join(root, "completion.toml"),
+      '[[on_loop_complete_claim]]\nname = "validate"\ncommand = "echo ok"\n',
+    );
+
+    const output = await runCli(
+      [
+        "--prompt",
+        "ship it",
+        "--provider",
+        "mock",
+        "--checks-config",
+        join(root, "checks.toml"),
+        "--completion-config",
+        join(root, "completion.toml"),
+      ],
+      { cwd: root },
+    );
+
+    expect(output).toContain("mock task 1 completed");
+    expect(output).toContain("mock task 2 completed");
+    expect(output).toContain("mock task 3 completed");
+    expect(output.match(/<ralph:task-complete\/>/g)?.length).toBe(3);
+    expect(output.match(/<ralph:loop-complete\/>/g)?.length).toBe(1);
   });
 });
