@@ -1,6 +1,6 @@
 ---
 id: rlt-w903
-status: open
+status: closed
 deps: [ral-m4r6]
 links: []
 created: 2026-04-14T05:19:19Z
@@ -43,3 +43,9 @@ Notes:
 - no Pi SDK or LLM is required for this slice
 - at least one automated test covers the happy-path mock run
 
+
+## Notes
+
+**2026-04-14T22:39:26Z**
+
+Acceptance criteria satisfied by the current mock vertical slice: provider=mock path runs end-to-end, runtime/controller/checks/completion are function-shaped seams, deterministic three-iteration behavior is covered by automated tests, and follow-on real command-backed checks/completion work has landed in 6902f2a.
