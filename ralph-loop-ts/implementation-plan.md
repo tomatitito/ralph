@@ -11,7 +11,7 @@
 
 ## Phase 2: core runtime
 - embed Pi SDK
-- create loop controller
+- create loop controller function
 - create fresh-session-per-iteration orchestration
 - support prompt file and inline prompt
 - add CLI flags matching Rust where practical
@@ -56,4 +56,5 @@ Architectural boundaries should be enforced continuously, not checked only at th
 - controller may depend on runtime, but not vice versa
 - process/platform/logging dependencies should stay at the controller boundary where practical
 - shared internal contracts should keep Pi SDK details from leaking into unrelated layers
+- prefer function-oriented seams over single-method classes where practical
 - dependency-cruiser should be run as an architecture guard alongside normal tests

@@ -54,6 +54,11 @@ interface IterationExtensionState {
 
 This contract should be treated as canonical for v1.
 
+Implementation style preference:
+- extension state should be plain data
+- helper logic should usually be exported as pure functions
+- avoid class wrappers unless they materially simplify a multi-hook Pi integration
+
 ## State handoff mechanism
 
 Version 1 should use an in-process shared state bridge owned by the Ralph controller and passed to the extensions at creation time.

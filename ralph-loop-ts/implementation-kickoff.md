@@ -10,6 +10,7 @@ Get to a minimal, runnable, testable scaffold that already enforces the key arch
 - the controller may depend on runtime
 - runtime must not depend on controller
 - only the controller should directly depend on process/platform/logging details in production code
+- function-oriented seams are preferred over single-method classes
 
 ## First slice to build
 
@@ -93,6 +94,7 @@ bun run dev
 - do not let leaf modules read `process` directly
 - do not postpone dependency-cruiser until later tickets
 - do not overbuild the scaffold before the first tests exist
+- do not introduce classes when a function type plus plain data is sufficient
 
 ## Ready-to-start definition
 

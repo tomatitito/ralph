@@ -1,6 +1,6 @@
 ---
 id: ral-m4r6
-status: open
+status: closed
 deps: [ral-b9sm]
 links: [cli.md, configuration.md, internal-contracts.md]
 created: 2026-04-13T20:32:09Z

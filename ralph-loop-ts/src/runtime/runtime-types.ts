@@ -36,6 +36,6 @@ export interface IterationRuntimeResult {
   extensionState: CombinedExtensionState;
 }
 
-export interface IterationRuntime {
-  runIteration(input: IterationInput): Promise<IterationRuntimeResult>;
-}
+export type IterationRuntime = (
+  input: IterationInput,
+) => Promise<IterationRuntimeResult>;

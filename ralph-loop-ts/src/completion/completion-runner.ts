@@ -1,3 +1,1 @@
-export interface CompletionRunner {
-  runOnLoopCompleteClaim(claimed: boolean): Promise<void>;
-}
+export type CompletionRunner = (claimed: boolean) => Promise<void>;

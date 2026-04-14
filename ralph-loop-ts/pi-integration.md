@@ -24,7 +24,7 @@ Benefits:
 ## Core integration responsibilities
 
 The Ralph TS controller should:
-- create and own a Pi runtime
+- call a runtime function typed as `IterationRuntime`
 - construct a fresh Pi session per iteration
 - bind the required Ralph extensions
 - inject iteration input and carried-forward summary
@@ -32,6 +32,11 @@ The Ralph TS controller should:
 - read extension-produced state
 - run checks and completion validators
 - decide whether to terminate or start the next iteration
+
+Implementation style preference:
+- prefer plain exported functions over classes for controller/runtime seams
+- for example, `runLoopController(...)` and `runPiIteration(...)`
+- reserve classes for cases where stateful lifecycle management is materially clearer than closures or explicit state objects
 
 ## Session strategy
 

@@ -26,6 +26,7 @@ The wiki is the canonical design artifact for `ralph-loop-ts`. It captures behav
 
 ## Conventions
 - Prefer short, interlinked pages over one giant document.
+- Prefer plain functions and function types over classes when either would work.
 - When a design choice changes, update the relevant page and append a note to [log.md](./log.md).
 - Treat this wiki as the source of truth for `ralph-loop-ts` design.
 - Later, implementation tasks can be derived into `tk` tickets from these pages.

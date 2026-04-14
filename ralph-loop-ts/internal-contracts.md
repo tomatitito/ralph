@@ -43,7 +43,13 @@ Rules:
 
 ## Dependency injection guidance
 
-Prefer passing explicit interfaces for side effects.
+Prefer passing explicit function types or plain-object data dependencies over classes.
+
+Default style for `ralph-loop-ts`:
+- use plain data objects for inputs and outputs
+- use exported function types for behavior seams
+- prefer `type Foo = (...) => ...` over single-method interfaces or classes
+- use object-shaped interfaces only when a dependency truly has multiple cohesive operations
 
 Examples:
 - `Logger`
@@ -177,17 +183,18 @@ export interface IterationRuntimeResult {
 }
 ```
 
-### Runtime interface
+### Runtime function type
 
 ```ts
-export interface IterationRuntime {
-  runIteration(input: IterationInput): Promise<IterationRuntimeResult>;
-}
+export type IterationRuntime = (
+  input: IterationInput,
+) => Promise<IterationRuntimeResult>;
 ```
 
 Notes:
 - Pi SDK types should stay inside the runtime implementation where practical
 - controller code should operate on `IterationRuntime`, not raw Pi sessions
+- prefer a plain function implementation such as `runPiIteration` over a runtime class
 
 ## Extension contracts
 
@@ -271,9 +278,7 @@ export interface CheckHookResult {
 ### Checks runner
 
 ```ts
-export interface ChecksRunner {
-  run(hook: CheckHook): Promise<CheckHookResult>;
-}
+export type ChecksRunner = (hook: CheckHook) => Promise<CheckHookResult>;
 ```
 
 ## Completion contracts
@@ -296,9 +301,9 @@ export interface CompletionValidationResult {
 ### Completion runner
 
 ```ts
-export interface CompletionRunner {
-  runOnLoopCompleteClaim(claimed: boolean): Promise<CompletionValidationResult>;
-}
+export type CompletionRunner = (
+  claimed: boolean,
+) => Promise<CompletionValidationResult>;
 ```
 
 Notes:
@@ -355,6 +360,7 @@ export interface IterationSummary {
 Notes:
 - the decision function should be as pure as practical
 - artifact writing should happen from controller-owned normalized data, not by re-deriving raw runtime state elsewhere
+- the main loop controller should preferably be an exported function such as `runLoopController(...)` rather than a class with a single `run()` method
 
 ## Artifact contracts
 
@@ -431,3 +437,8 @@ These contracts are designed so tests can:
 - validate controller decisions with table-driven inputs
 - run dependency-cruiser in CI as an architecture regression check
 - support red/green TDD by keeping most business logic isolated from concrete infrastructure
+
+For the first vertical slice, prefer hardcoded function implementations over scaffolding classes. For example:
+- a mock `IterationRuntime` function that emits three deterministic iterations
+- a trivial `ChecksRunner` function that returns success
+- a trivial `CompletionRunner` function that returns success on loop-complete claims

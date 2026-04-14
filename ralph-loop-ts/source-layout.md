@@ -7,8 +7,9 @@ It exists to make `ral-b9sm` implementation-ready and to keep future tickets ali
 ## Design goals
 
 - controller is the only production layer that wires everything together
-- runtime hides Pi SDK details behind a narrow interface
+- runtime hides Pi SDK details behind a narrow behavioral seam
 - leaf modules stay testable through dependency injection
+- prefer exported functions and function types over classes where practical
 - source layout should map cleanly to dependency-cruiser rules
 - the project should support red/green TDD from the first ticket onward
 
@@ -94,6 +95,7 @@ src/
 - is the only production layer allowed to import runtime modules directly
 - is the only production layer allowed to import concrete platform adapters directly
 - consumes normalized contracts from other layers
+- should prefer `runLoopController(...)`-style functions over controller classes
 
 ### `src/config/`
 - parsing
@@ -108,6 +110,7 @@ src/
 - binds extensions
 - returns normalized runtime results
 - must not import controller modules
+- should usually export behavior as function implementations typed by `IterationRuntime`
 
 ### `src/extensions/`
 - Pi-facing extension logic only
@@ -186,9 +189,9 @@ Recommended rhythm:
 For early tickets:
 - `ral-b9sm`: start with scaffold tests and dependency-cruiser invocation
 - `ral-m4r6`: write table-driven config parsing tests first
-- `ral-xtlt`: start with a fake `IterationRuntime` contract test, then implement the Pi adapter
-- `ral-gu4t`: drive the controller with pure decision tests first
-- `ral-g5ex` / `ral-og1z`: begin with command-runner and aggregation tests
+- `ral-xtlt`: start with a fake `IterationRuntime` function contract test, then implement the Pi adapter
+- `ral-gu4t`: drive the controller with pure decision tests first and implement the main controller as a function
+- `ral-g5ex` / `ral-og1z`: begin with function-shaped command-runner and aggregation tests
 - `ral-l3ri`: begin with path-layout and file-output tests
 
 ## Suggested initial test files

@@ -1,3 +1,1 @@
-export interface LoopController {
-  run(): Promise<void>;
-}
+export type LoopController = () => Promise<void>;

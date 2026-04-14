@@ -1,3 +1,1 @@
-export interface ChecksRunner {
-  run(): Promise<void>;
-}
+export type ChecksRunner = () => Promise<void>;

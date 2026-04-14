@@ -15,3 +15,8 @@
 ## [2026-04-13] planning | added ticket roadmap and clarified execution order
 - Added `ticket-roadmap.md` to explain the intended `tk` dependency flow
 - Documented the critical path, supporting work, and priority meanings for newcomers
+
+## [2026-04-14] architecture | prefer function-oriented seams over classes
+- Updated the wiki to state a clear preference for plain functions and function types over single-method classes
+- Reframed controller/runtime/checks/completion seams around function-shaped contracts
+- Clarified that classes should be reserved for cases where stateful lifecycle management is materially clearer than functions and plain data
