@@ -6,10 +6,16 @@ import {
   type CompletionValidationResult,
 } from "../guards/completion.ts";
 import { buildHandoffSummary } from "./handoff-summary.ts";
+import { toIterationDecision, IterationDecision } from "./decision.ts";
 import { runPiIteration } from "../runtime/pi-runtime.ts";
 import type { IterationRuntime } from "../runtime/runtime-types.ts";
 
-export type RunExitReason = "loop_completed" | "max_iterations_exceeded" | "interrupted" | "error";
+export enum RunExitReason {
+  LoopCompleted = "loop_completed",
+  MaxIterationsExceeded = "max_iterations_exceeded",
+  Interrupted = "interrupted",
+  Error = "error",
+}
 
 export interface RunLoopControllerInput {
   runConfig: ResolvedRunConfig;
@@ -26,14 +32,30 @@ export interface LoopControllerResult {
 
 export interface RunConfiguredLoopInput {
   config: ResolvedConfigBundle;
+  runtime: IterationRuntime;
+  runChecks: ChecksRunner;
+  runCompletion: CompletionRunner;
 }
 
-function isSuccessfulLoopCompletion(input: {
-  loopCompleteClaimed: boolean;
-  afterIterationPassed: boolean;
-  completionPassed: boolean;
-}): boolean {
-  return input.loopCompleteClaimed && input.afterIterationPassed && input.completionPassed;
+export interface ConfiguredLoopDependencies {
+  runtime: IterationRuntime;
+  runChecks: ChecksRunner;
+  runCompletion: CompletionRunner;
+}
+
+function toRunExitReason(decision: IterationDecision): RunExitReason | null {
+  switch (decision) {
+    case IterationDecision.Success:
+      return RunExitReason.LoopCompleted;
+    case IterationDecision.MaxIterationsExceeded:
+      return RunExitReason.MaxIterationsExceeded;
+    case IterationDecision.Interrupted:
+      return RunExitReason.Interrupted;
+    case IterationDecision.Error:
+      return RunExitReason.Error;
+    default:
+      return null;
+  }
 }
 
 export async function runLoopController(input: RunLoopControllerInput): Promise<LoopControllerResult> {
@@ -44,7 +66,7 @@ export async function runLoopController(input: RunLoopControllerInput): Promise<
   while (true) {
     if (input.runConfig.maxIterations !== null && iterationNumber > input.runConfig.maxIterations) {
       return {
-        exitReason: "max_iterations_exceeded",
+        exitReason: RunExitReason.MaxIterationsExceeded,
         iterationCount: iterationNumber - 1,
         outputLines,
       };
@@ -70,31 +92,19 @@ export async function runLoopController(input: RunLoopControllerInput): Promise<
       ? await input.runCompletion()
       : { status: "skipped", results: [] };
 
-    if (
-      isSuccessfulLoopCompletion({
-        loopCompleteClaimed,
-        afterIterationPassed: afterIterationChecks.passed,
-        completionPassed: completion.status === "passed",
-      })
-    ) {
-      return {
-        exitReason: "loop_completed",
-        iterationCount: iterationNumber,
-        outputLines,
-      };
-    }
+    const decision = toIterationDecision({
+      runtimeExitReason: runtimeResult.exitReason,
+      contextLimitHit: runtimeResult.extensionState.context.contextLimitHit,
+      taskComplete: runtimeResult.extensionState.lifecycle.taskComplete,
+      loopCompleteClaimed,
+      afterIterationChecksPassed: afterIterationChecks.passed,
+      completionStatus: completion.status,
+    });
 
-    if (runtimeResult.exitReason === "interrupted") {
+    const exitReason = toRunExitReason(decision);
+    if (exitReason !== null) {
       return {
-        exitReason: "interrupted",
-        iterationCount: iterationNumber,
-        outputLines,
-      };
-    }
-
-    if (runtimeResult.exitReason === "error") {
-      return {
-        exitReason: "error",
+        exitReason,
         iterationCount: iterationNumber,
         outputLines,
       };
@@ -110,6 +120,14 @@ export async function runLoopController(input: RunLoopControllerInput): Promise<
   }
 }
 
+export function createConfiguredLoopDependencies(config: ResolvedConfigBundle): ConfiguredLoopDependencies {
+  return {
+    runtime: runPiIteration,
+    runChecks: createChecksRunner(config.checksConfig),
+    runCompletion: createCompletionRunner(config.completionConfig),
+  };
+}
+
 export async function runConfiguredLoop(input: RunConfiguredLoopInput): Promise<LoopControllerResult> {
   if (input.config.runConfig.provider !== "mock") {
     throw new Error("only --provider mock is implemented for this vertical slice");
@@ -117,8 +135,8 @@ export async function runConfiguredLoop(input: RunConfiguredLoopInput): Promise<
 
   return runLoopController({
     runConfig: input.config.runConfig,
-    runtime: runPiIteration,
-    runChecks: createChecksRunner(input.config.checksConfig),
-    runCompletion: createCompletionRunner(input.config.completionConfig),
+    runtime: input.runtime,
+    runChecks: input.runChecks,
+    runCompletion: input.runCompletion,
   });
 }

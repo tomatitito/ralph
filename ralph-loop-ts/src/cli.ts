@@ -3,7 +3,7 @@ import { resolve as resolvePath } from "node:path";
 
 import type { RawCliArgs } from "./config/config-types.ts";
 import { resolveConfig } from "./config/resolve-config.ts";
-import { runConfiguredLoop } from "./controller/loop-controller.ts";
+import { createConfiguredLoopDependencies, runConfiguredLoop } from "./controller/loop-controller.ts";
 
 export interface RunCliOptions {
   cwd?: string;
@@ -111,7 +111,11 @@ export async function runCli(args: readonly string[] = [], options: RunCliOption
   });
 
   if (resolved.runConfig.provider === "mock") {
-    const result = await runConfiguredLoop({ config: resolved });
+    const dependencies = createConfiguredLoopDependencies(resolved);
+    const result = await runConfiguredLoop({
+      config: resolved,
+      ...dependencies,
+    });
     return result.outputLines.join("\n");
   }
 
